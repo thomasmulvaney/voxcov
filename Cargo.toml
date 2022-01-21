@@ -1,0 +1,13 @@
+[package]
+name = "voxcov"
+version = "0.1.0"
+authors = ["Thomas Mulvaney <mulvaney@mailbox.org>"]
+edition = "2021"
+
+[lib]
+name = "voxcov"
+
+[dev-dependencies]
+approx = "0.3.2"
+
+[dependencies]

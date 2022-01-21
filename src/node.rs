@@ -29,8 +29,8 @@ impl<C: Default> Node<C> {
     }
 
     pub fn zero(&mut self) {
-       self.children = None;
-       self.coverage = C::default();
+        self.children = None;
+        self.coverage = C::default();
     }
 
     pub fn is_voxel(&self) -> bool {
@@ -291,6 +291,9 @@ impl CubeCounter {
         for row in self.counters.iter_mut() {
             for col in row.iter_mut() {
                 for cell in col.iter_mut() {
-			*cell = 0;
-                }}}}
+                    *cell = 0;
+                }
+            }
+        }
+    }
 }

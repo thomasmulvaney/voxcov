@@ -60,9 +60,9 @@ impl MOC {
 
     // Reset the sums to zero
     fn zero(&mut self) {
-       self.ss = 0f64;
-       self.se = 0f64;
-       self.ee = 0f64;
+        self.ss = 0f64;
+        self.se = 0f64;
+        self.ee = 0f64;
     }
 }
 

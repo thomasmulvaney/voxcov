@@ -43,7 +43,7 @@ fn uniq_vs_total(points: &[[f64; 3]], q: &[usize], file: &str) {
             z += map.add_cov(&Sphere::new(*p, *r as f64), &mut |_| ());
         }
         writeln!(&mut w, "{}, {}", r, z).unwrap();
-        println!("{} {} {}",file, r, z);
+        println!("{} {} {}", file, r, z);
     }
 }
 

@@ -167,8 +167,8 @@ impl<C: Default + CoverageCheck> MapLike for MapRoot<C> {
         }
     }
 
-    fn zero(&mut self) { 
-      self.root.zero();
+    fn zero(&mut self) {
+        self.root.zero();
     }
 }
 
@@ -206,8 +206,8 @@ impl MapLike for NaiveDiffCoverageMap {
         }
     }
 
-    fn zero(&mut self) { 
-      self.voxel_counters.zero();
+    fn zero(&mut self) {
+        self.voxel_counters.zero();
     }
 }
 

@@ -21,17 +21,17 @@ fn main() {
     println!("Points: {}", points.len());
 
     let mut map = Map::new([0.0; 3], [1.084; 3], [256; 3]);
-    let blurrer = GaussianBlur::new(0.187, 4.0);
+    let blurrer = GaussianBlur::new(4.0);
     let now = Instant::now();
     for p in &points {
-        blurrer.add_gaussian(&mut map, p, 1.0);
+        blurrer.add_gaussian(&mut map, p, 1.0, 4.0 * 0.187);
     }
     println!("End blur {:?}", now.elapsed());
 
     let now = Instant::now();
-    for p in &points[0..10000] {
-        blurrer.add_gaussian(&mut map, p, -1.0);
-        blurrer.add_gaussian(&mut map, p, 1.0);
+    for p in &points {
+        blurrer.add_gaussian(&mut map, p, -1.0, 4.0 * 0.187);
+        blurrer.add_gaussian(&mut map, p, 1.0, 4.0 * 0.187);
     }
     println!("End blur {:?}", now.elapsed());
 }

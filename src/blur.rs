@@ -55,13 +55,12 @@ impl Gaussian {
 /// center so we provide a cutoff parameter: the distance from the center at which to
 /// stop calculating density.
 pub struct GaussianBlur {
-    sigma: f64,
     cutoff: f64,
 }
 
 impl GaussianBlur {
-    pub fn new(sigma: f64, cutoff: f64) -> Self {
-        Self { sigma, cutoff }
+    pub fn new(cutoff: f64) -> Self {
+        Self { cutoff }
     }
 }
 
@@ -78,13 +77,13 @@ pub trait AddGaussianToMap {
     /// * `map` - the density map to update.
     /// * `position` - the atom to blur onto the map.
     /// * `height` - the height of the gaussian.
-    fn add_gaussian(&self, map: &mut Map, position: &Point, height: f64);
+    fn add_gaussian(&self, map: &mut Map, position: &Point, height: f64, sigma: f64);
 }
 
 impl AddGaussianToMap for GaussianBlur {
-    fn add_gaussian(&self, map: &mut Map, position: &Point, height: f64) {
-        let gaus = Gaussian::new(*position, self.sigma);
-        let cutoff_dist = self.cutoff * self.sigma;
+    fn add_gaussian(&self, map: &mut Map, position: &Point, height: f64, sigma: f64) {
+        let gaus = Gaussian::new(*position, sigma);
+        let cutoff_dist = self.cutoff * sigma;
 
         // Define a box to blur in.
         let pos = position;
@@ -103,33 +102,10 @@ impl AddGaussianToMap for GaussianBlur {
         let tf = &map.transform;
         let mut lv = tf.to_voxel(&lower_corner);
         let mut uv = tf.to_voxel(&upper_corner);
-        if lv[0] == 0 {
-            lv[0] = 0;
-        }
 
-        if lv[1] == 0 {
-            lv[1] = 0;
-        }
-
-        if lv[2] == 0 {
-            lv[2] = 0;
-        }
-
-        if uv[0] >= map.size[0] {
-            uv[0] = map.size[0] - 1;
-        }
-
-        if uv[1] >= map.size[1] {
-            uv[1] = map.size[1] - 1;
-        }
-
-        if uv[2] >= map.size[2] {
-            uv[2] = map.size[2] - 1;
-        }
-
-        //println!("BB: {:?} {:?}", lv, uv);
-        //println!("P: {:?}", position);
-        //println!("C: {:?}", cutoff_dist);
+        uv[0] = usize::min(map.size[0] - 1, uv[0]);
+        uv[1] = usize::min(map.size[1] - 1, uv[1]);
+        uv[2] = usize::min(map.size[2] - 1, uv[2]);
 
         let dens = &mut map.densities;
         // We should blur voxels with in radius of cutoff but for now just do
@@ -166,7 +142,6 @@ impl Map {
     /// let map = Map::new([0f64; 3], [1.0f64; 3], [100; 3]);
     /// ```
     pub fn new(origin: Point, scale: Vector, size: [usize; 3]) -> Self {
-        println!("Create Map: {:?} {:?} {:?}", origin, scale, size);
         Self {
             size,
             transform: Transform { origin, scale },
@@ -209,7 +184,25 @@ impl RawMap {
 
 impl GetDensity for RawMap {
     fn get_density(&self, coord: Coord) -> f64 {
-        //println!("Coord: {:?} Size: {:?}", coord, self.size);
         self.densities[coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2]]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::blur::{AddGaussianToMap, GaussianBlur, Map};
+    use approx::relative_eq;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_blur() {
+        let mut map = Map::new([1.0; 3], [0.0; 3], [10; 3]);
+        let gb = GaussianBlur::new(4.0);
+
+        gb.add_gaussian(&mut map, &[0.0; 3], 1.0, 10.0);
+
+        // Out of bounds does not cause error
+        gb.add_gaussian(&mut map, &[-10.0; 3], 1.0, 10.0);
+        gb.add_gaussian(&mut map, &[10.0; 3], 1.0, 10.0);
     }
 }

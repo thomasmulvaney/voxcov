@@ -187,3 +187,22 @@ impl GetDensity for RawMap {
         self.densities[coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2]]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::blur::{AddGaussianToMap, GaussianBlur, Map};
+    use approx::relative_eq;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_blur() {
+        let mut map = Map::new([1.0; 3], [0.0; 3], [10; 3]);
+        let gb = GaussianBlur::new(4.0);
+
+        gb.add_gaussian(&mut map, &[0.0; 3], 1.0, 10.0);
+
+        // Out of bounds does not cause error
+        gb.add_gaussian(&mut map, &[-10.0; 3], 1.0, 10.0);
+        gb.add_gaussian(&mut map, &[10.0; 3], 1.0, 10.0);
+    }
+}

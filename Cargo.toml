@@ -3,6 +3,8 @@ name = "voxcov"
 version = "0.2.0"
 authors = ["Thomas Mulvaney <mulvaney@mailbox.org>"]
 edition = "2021"
+description = "Write something"
+license-file = "LICENSE"
 
 [lib]
 name = "voxcov"

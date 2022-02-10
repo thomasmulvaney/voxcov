@@ -103,6 +103,11 @@ impl AddGaussianToMap for GaussianBlur {
         let mut lv = tf.to_voxel(&lower_corner);
         let mut uv = tf.to_voxel(&upper_corner);
 
+
+        lv[0] = usize::min(map.size[0] - 1, lv[0]);
+        lv[1] = usize::min(map.size[1] - 1, lv[1]);
+        lv[2] = usize::min(map.size[2] - 1, lv[2]);
+
         uv[0] = usize::min(map.size[0] - 1, uv[0]);
         uv[1] = usize::min(map.size[1] - 1, uv[1]);
         uv[2] = usize::min(map.size[2] - 1, uv[2]);
@@ -204,5 +209,6 @@ mod tests {
         // Out of bounds does not cause error
         gb.add_gaussian(&mut map, &[-10.0; 3], 1.0, 10.0);
         gb.add_gaussian(&mut map, &[10.0; 3], 1.0, 10.0);
+        gb.add_gaussian(&mut map, &[20.0; 3], 1.0, 2.0);
     }
 }

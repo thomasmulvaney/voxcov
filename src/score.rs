@@ -112,7 +112,13 @@ where
         let map = &mut self.map;
         let moc = &mut self.moc;
         map.add_cov(obj, &mut |coord: Coord| {
-            moc.add_val(sim.get_density(coord), exp.get_density(coord))
+            if let Some(s) = sim.get_density(coord) {
+                if let Some(e) = exp.get_density(coord) {
+                    moc.add_val(s, e)
+                }
+            }
+            // TODO: We might actually want to track cases where map and model
+            // have pixels which don't exist...
         });
     }
 
@@ -132,7 +138,11 @@ where
         let map = &mut self.map;
         let moc = &mut self.moc;
         map.del_cov(obj, &mut |coord: Coord| {
-            moc.del_val(sim.get_density(coord), exp.get_density(coord))
+            if let Some(s) = sim.get_density(coord) {
+                if let Some(e) = exp.get_density(coord) {
+                    moc.del_val(s, e)
+                }
+            }
         });
     }
 

@@ -134,7 +134,7 @@ pub struct Map {
 
 pub trait GetDensity {
     /// Get the density value at the coordinate
-    fn get_density(&self, coord: Coord) -> f64;
+    fn get_density(&self, coord: Coord) -> Option<f64>;
 }
 
 impl Map {
@@ -166,8 +166,12 @@ impl Map {
 }
 
 impl GetDensity for Map {
-    fn get_density(&self, coord: Coord) -> f64 {
-        self.densities[coord[2]][coord[1]][coord[0]]
+    fn get_density(&self, coord: Coord) -> Option<f64> {
+        if coord[0] < self.size[0] && coord[1] < self.size[1] && coord[2] < self.size[2] {
+            Some(self.densities[coord[2]][coord[1]][coord[0]])
+        } else {
+            None
+        }
     }
 }
 
@@ -175,12 +179,14 @@ pub struct RawMap {
     pub transform: Transform,
     pub densities: Vec<f64>,
     size: [usize; 3],
+    max_idx: usize,
 }
 
 impl RawMap {
     pub fn new(origin: Point, scale: Vector, size: [usize; 3], vec: Vec<f64>) -> Self {
         Self {
             size,
+            max_idx: size[0] * size[1] * size[2],
             transform: Transform { origin, scale },
             densities: vec,
         }
@@ -188,8 +194,13 @@ impl RawMap {
 }
 
 impl GetDensity for RawMap {
-    fn get_density(&self, coord: Coord) -> f64 {
-        self.densities[coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2]]
+    fn get_density(&self, coord: Coord) -> Option<f64> {
+        let idx = coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2];
+        if idx < self.max_idx {
+            Some(self.densities[idx])
+        } else {
+            None
+        }
     }
 }
 
@@ -208,7 +219,8 @@ mod tests {
 
         // Out of bounds does not cause error
         gb.add_gaussian(&mut map, &[-10.0; 3], 1.0, 10.0);
-        gb.add_gaussian(&mut map, &[10.0; 3], 1.0, 10.0);
-        gb.add_gaussian(&mut map, &[20.0; 3], 1.0, 2.0);
+        gb.add_gaussian(&mut map, &[10.0; 3], 1.0,  10.0);
+        gb.add_gaussian(&mut map, &[20.0; 3], 1.0,  2.0);
+        gb.add_gaussian(&mut map, &[-1.0; 3], 1.0,  20.0);
     }
 }

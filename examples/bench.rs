@@ -5,6 +5,7 @@ use voxcov::coverage::{
     AddCoverage, Coverage, DiffCoverage, MapLike, MapRoot, NaiveDiffCoverageMap,
 };
 use voxcov::geom::Sphere;
+use voxcov::grid::{Grid, GridLike};
 
 /// Stolen from https://github.com/ybyygu/rust-octree/blob/master/examples/demo.rs
 fn read_points_xyz(txt: &str) -> Vec<[f64; 3]> {
@@ -22,8 +23,13 @@ fn read_points_xyz(txt: &str) -> Vec<[f64; 3]> {
 
 fn bench_loop<M: MapLike + AddCoverage>(points: &[[f64; 3]], q: &[usize], file: &str) {
     let mut w = File::create(file).unwrap();
+    let mut map = M::new([1.0f64; 3], [0f64; 3], 1024);
     for r in q {
-        let mut map = M::new([1.0f64; 3], [0f64; 3], 1024);
+        let now = Instant::now();
+        map.zero();
+        let t = now.elapsed().as_millis();
+        println!("Zero T({})", t);
+
         let mut z = 0;
         let now = Instant::now();
         for p in points {
@@ -51,7 +57,7 @@ fn main() {
     let stream = include_str!("data/4ki8.xyz");
     let points = read_points_xyz(stream);
     let q = vec![
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10
     ];
     bench_loop::<MapRoot<Coverage>>(&points, &q, "bench_cov.csv");
     bench_loop::<MapRoot<DiffCoverage>>(&points, &q, "bench_diff.csv");

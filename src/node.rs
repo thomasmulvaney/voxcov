@@ -1,4 +1,5 @@
 use crate::geom::{BoundingBox, Coord, Distance, Point, Transform};
+use crate::grid::{Grid, GridLike};
 
 /// A node in the tree.
 ///
@@ -11,7 +12,6 @@ pub struct Node<C> {
     pub coord: Coord,
     pub width: usize,
     pub coverage: C,
-    pub cube: Option<Box<CubeCounter>>,
     pub children: Option<Box<[Node<C>; 8]>>,
 }
 
@@ -22,7 +22,6 @@ impl<C: Default> Node<C> {
         Node {
             coord,
             width,
-            cube: None,
             coverage: C::default(),
             children: None,
         }
@@ -98,13 +97,13 @@ impl<C: Default> Node<C> {
 /// Dense datastructure for counting voxel coverage
 #[derive(Clone)]
 pub struct CubeCounter {
-    counters: Vec<Vec<Vec<usize>>>,
+    counters: Grid<usize>,
 }
 
 impl CubeCounter {
     pub fn new(width: usize) -> Self {
         Self {
-            counters: vec![vec![vec![0; width]; width]; width],
+            counters: Grid::new([width; 3])
         }
     }
     pub fn add_coverage(
@@ -165,14 +164,14 @@ impl CubeCounter {
             usize::min(width, uv[2] - offset[2])
         };
 
-        //println!("Add Coord {:?} {:?} {:?}    {:?} {:?}", offset, lv, uv, [xl,yl,zl], [xu,yu,zu]);
         let cut2 = cutoff_dist * cutoff_dist;
         let mut added = 0;
-        for (k, row) in self.counters[zl..zu].iter_mut().enumerate() {
-            for (j, col) in row[yl..yu].iter_mut().enumerate() {
-                for (i, cell) in col[xl..xu].iter_mut().enumerate() {
+        for k in zl..zu {
+            for j in yl..yu {
+                for i in xl..xu {
                     // Lowest point of voxel
-                    let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
+                    //let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
+                    let coord: Coord = [i, j , k];
                     let mut point: Point = tf.to_real(&coord);
 
                     // Center of voxel
@@ -185,11 +184,12 @@ impl CubeCounter {
                     // is center of voxel within radius?
                     if dist2 < cut2 {
                         // Count newly covered voxel
-                        if *cell == 0 {
+                        let val = self.counters.get(coord);
+                        if val == 0 {
                             added += 1;
                             f(coord);
                         }
-                        *cell += 1;
+                        self.counters.set(coord, val + 1);
                     }
                 }
             }
@@ -257,11 +257,12 @@ impl CubeCounter {
 
         let cut2 = cutoff_dist * cutoff_dist;
         let mut deleted = 0;
-        for (k, row) in self.counters[zl..zu].iter_mut().enumerate() {
-            for (j, col) in row[yl..yu].iter_mut().enumerate() {
-                for (i, cell) in col[xl..xu].iter_mut().enumerate() {
+        for k in zl..zu {
+            for j in yl..yu {
+                for i in xl..xu {
                     // Lowest point of voxel
-                    let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
+                    //let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
+                    let coord: Coord = [i,j,k];
                     let mut point: Point = tf.to_real(&coord);
 
                     // Center of voxel
@@ -274,11 +275,12 @@ impl CubeCounter {
                     // is center of voxel within radius?
                     if dist2 < cut2 {
                         // Count newly covered voxel
-                        if *cell == 1 {
+                        let val = self.counters.get(coord);
+                        if val == 1 {
                             deleted += 1;
                             f(coord);
                         }
-                        *cell -= 1;
+                        self.counters.set(coord, val - 1);
                     }
                 }
             }
@@ -288,12 +290,6 @@ impl CubeCounter {
     }
 
     pub fn zero(&mut self) {
-        for row in self.counters.iter_mut() {
-            for col in row.iter_mut() {
-                for cell in col.iter_mut() {
-                    *cell = 0;
-                }
-            }
-        }
+       self.counters.zero();
     }
 }

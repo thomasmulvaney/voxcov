@@ -19,3 +19,4 @@ pub mod coverage;
 pub mod geom;
 pub mod node;
 pub mod score;
+pub mod grid;

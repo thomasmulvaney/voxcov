@@ -172,7 +172,6 @@ impl CubeCounter {
             for j in yl..yu {
                 for i in xl..xu {
                     // Lowest point of voxel
-                    //let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
                     let coord: Coord = [i, j, k];
                     let mut point: Point = tf.to_real(&coord);
 
@@ -264,7 +263,6 @@ impl CubeCounter {
             for j in yl..yu {
                 for i in xl..xu {
                     // Lowest point of voxel
-                    //let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
                     let coord: Coord = [i, j, k];
                     let mut point: Point = tf.to_real(&coord);
 
@@ -289,7 +287,6 @@ impl CubeCounter {
                 }
             }
         }
-        //println!("Deleted: {}", deleted);
         deleted
     }
 

@@ -30,8 +30,8 @@ fn main() {
 
     let now = Instant::now();
     for p in &points {
-        blurrer.add_gaussian(&mut map, p, -1.0, 8.0 * 0.187);
-        blurrer.add_gaussian(&mut map, p, 1.0, 8.0 * 0.187);
+        blurrer.add_gaussian(&mut map, p, -1.0, 4.0 * 0.187);
+        blurrer.add_gaussian(&mut map, p, 1.0, 4.0 * 0.187);
     }
     println!("End blur {:?}", now.elapsed());
 }

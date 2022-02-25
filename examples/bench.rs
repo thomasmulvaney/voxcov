@@ -56,9 +56,7 @@ fn uniq_vs_total(points: &[[f64; 3]], q: &[usize], file: &str) {
 fn main() {
     let stream = include_str!("data/4ki8.xyz");
     let points = read_points_xyz(stream);
-    let q = vec![
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10
-    ];
+    let q = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20];
     bench_loop::<MapRoot<Coverage>>(&points, &q, "bench_cov.csv");
     bench_loop::<MapRoot<DiffCoverage>>(&points, &q, "bench_diff.csv");
     bench_loop::<NaiveDiffCoverageMap>(&points, &q, "bench_naive.csv");

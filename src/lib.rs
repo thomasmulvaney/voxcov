@@ -17,6 +17,6 @@
 pub mod blur;
 pub mod coverage;
 pub mod geom;
+pub mod grid;
 pub mod node;
 pub mod score;
-pub mod grid;

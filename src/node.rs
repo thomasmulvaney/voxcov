@@ -97,13 +97,13 @@ impl<C: Default> Node<C> {
 /// Dense datastructure for counting voxel coverage
 #[derive(Clone)]
 pub struct CubeCounter {
-    counters: Grid<usize>,
+    counters: Grid<u16>,
 }
 
 impl CubeCounter {
     pub fn new(width: usize) -> Self {
         Self {
-            counters: Grid::new([width; 3])
+            counters: Grid::new([width; 3]),
         }
     }
     pub fn add_coverage(
@@ -166,12 +166,14 @@ impl CubeCounter {
 
         let cut2 = cutoff_dist * cutoff_dist;
         let mut added = 0;
+        self.counters.rec([xl, yl, zl]);
+        self.counters.rec([xu, yu, zu]);
         for k in zl..zu {
             for j in yl..yu {
                 for i in xl..xu {
                     // Lowest point of voxel
                     //let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
-                    let coord: Coord = [i, j , k];
+                    let coord: Coord = [i, j, k];
                     let mut point: Point = tf.to_real(&coord);
 
                     // Center of voxel
@@ -184,12 +186,13 @@ impl CubeCounter {
                     // is center of voxel within radius?
                     if dist2 < cut2 {
                         // Count newly covered voxel
-                        let val = self.counters.get(coord);
-                        if val == 0 {
-                            added += 1;
-                            f(coord);
+                        if let Some(val) = self.counters.get_mut(coord) {
+                            if *val == 0 {
+                                added += 1;
+                                f(coord);
+                            }
+                            *val += 1;
                         }
-                        self.counters.set(coord, val + 1);
                     }
                 }
             }
@@ -262,7 +265,7 @@ impl CubeCounter {
                 for i in xl..xu {
                     // Lowest point of voxel
                     //let coord: Coord = [i + xl + offset[0], j + yl + offset[1], k + zl + offset[2]];
-                    let coord: Coord = [i,j,k];
+                    let coord: Coord = [i, j, k];
                     let mut point: Point = tf.to_real(&coord);
 
                     // Center of voxel
@@ -275,12 +278,13 @@ impl CubeCounter {
                     // is center of voxel within radius?
                     if dist2 < cut2 {
                         // Count newly covered voxel
-                        let val = self.counters.get(coord);
-                        if val == 1 {
-                            deleted += 1;
-                            f(coord);
+                        if let Some(val) = self.counters.get_mut(coord) {
+                            if *val == 1 {
+                                deleted += 1;
+                                f(coord);
+                            }
+                            *val -= 1;
                         }
-                        self.counters.set(coord, val - 1);
                     }
                 }
             }
@@ -290,6 +294,6 @@ impl CubeCounter {
     }
 
     pub fn zero(&mut self) {
-       self.counters.zero();
+        self.counters.zero();
     }
 }

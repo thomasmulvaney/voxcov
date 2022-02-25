@@ -16,6 +16,7 @@
 //! Functions for blurring structures and building simulated density maps.
 
 use crate::geom::{Coord, Distance, Point, Transform, Vector};
+use crate::grid::{Grid, GridLike};
 
 /// A 3D gaussian like function with a width of sigma.
 pub struct Gaussian {
@@ -100,13 +101,8 @@ impl AddGaussianToMap for GaussianBlur {
         ];
 
         let tf = &map.transform;
-        let mut lv = tf.to_voxel(&lower_corner);
+        let lv = tf.to_voxel(&lower_corner);
         let mut uv = tf.to_voxel(&upper_corner);
-
-
-        lv[0] = usize::min(map.size[0] - 1, lv[0]);
-        lv[1] = usize::min(map.size[1] - 1, lv[1]);
-        lv[2] = usize::min(map.size[2] - 1, lv[2]);
 
         uv[0] = usize::min(map.size[0] - 1, uv[0]);
         uv[1] = usize::min(map.size[1] - 1, uv[1]);
@@ -115,11 +111,16 @@ impl AddGaussianToMap for GaussianBlur {
         let dens = &mut map.densities;
         // We should blur voxels with in radius of cutoff but for now just do
         // every voxel in the box.
-        for (row, k) in dens[lv[2]..=uv[2]].iter_mut().zip(lv[2]..=uv[2]) {
-            for (col, j) in row[lv[1]..=uv[1]].iter_mut().zip(lv[1]..=uv[1]) {
-                for (cell, i) in col[lv[0]..=uv[0]].iter_mut().zip(lv[0]..=uv[0]) {
+        dens.rec(uv);
+        dens.rec(lv);
+        for k in lv[2]..=uv[2] {
+            for j in lv[1]..=uv[1] {
+                for i in lv[0]..=uv[0] {
                     let center = tf.to_real(&[i, j, k]);
-                    *cell += gaus.height_at_point(&center) * height;
+                    let v = gaus.height_at_point(&center) * height;
+                    if let Some(d) = dens.get_mut([i, j, k]) {
+                        *d += v;
+                    }
                 }
             }
         }
@@ -129,12 +130,12 @@ impl AddGaussianToMap for GaussianBlur {
 pub struct Map {
     size: [usize; 3],
     pub transform: Transform,
-    pub densities: Vec<Vec<Vec<f64>>>,
+    pub densities: Grid<f64>,
 }
 
 pub trait GetDensity {
     /// Get the density value at the coordinate
-    fn get_density(&self, coord: Coord) -> Option<f64>;
+    fn get_density(&self, coord: Coord) -> Option<&f64>;
 }
 
 impl Map {
@@ -150,28 +151,18 @@ impl Map {
         Self {
             size,
             transform: Transform { origin, scale },
-            densities: vec![vec![vec![0.0; size[0]]; size[1]]; size[2]],
+            densities: Grid::new(size),
         }
     }
 
     pub fn zero(&mut self) {
-        for row in self.densities.iter_mut() {
-            for col in row.iter_mut() {
-                for cell in col.iter_mut() {
-                    *cell = 0f64;
-                }
-            }
-        }
+        self.densities.zero();
     }
 }
 
 impl GetDensity for Map {
-    fn get_density(&self, coord: Coord) -> Option<f64> {
-        if coord[0] < self.size[0] && coord[1] < self.size[1] && coord[2] < self.size[2] {
-            Some(self.densities[coord[2]][coord[1]][coord[0]])
-        } else {
-            None
-        }
+    fn get_density(&self, coord: Coord) -> Option<&f64> {
+        self.densities.get(coord)
     }
 }
 
@@ -179,14 +170,12 @@ pub struct RawMap {
     pub transform: Transform,
     pub densities: Vec<f64>,
     size: [usize; 3],
-    max_idx: usize,
 }
 
 impl RawMap {
     pub fn new(origin: Point, scale: Vector, size: [usize; 3], vec: Vec<f64>) -> Self {
         Self {
             size,
-            max_idx: size[0] * size[1] * size[2],
             transform: Transform { origin, scale },
             densities: vec,
         }
@@ -194,13 +183,9 @@ impl RawMap {
 }
 
 impl GetDensity for RawMap {
-    fn get_density(&self, coord: Coord) -> Option<f64> {
+    fn get_density(&self, coord: Coord) -> Option<&f64> {
         let idx = coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2];
-        if idx < self.max_idx {
-            Some(self.densities[idx])
-        } else {
-            None
-        }
+        self.densities.get(idx)
     }
 }
 
@@ -219,8 +204,8 @@ mod tests {
 
         // Out of bounds does not cause error
         gb.add_gaussian(&mut map, &[-10.0; 3], 1.0, 10.0);
-        gb.add_gaussian(&mut map, &[10.0; 3], 1.0,  10.0);
-        gb.add_gaussian(&mut map, &[20.0; 3], 1.0,  2.0);
-        gb.add_gaussian(&mut map, &[-1.0; 3], 1.0,  20.0);
+        gb.add_gaussian(&mut map, &[10.0; 3], 1.0, 10.0);
+        gb.add_gaussian(&mut map, &[20.0; 3], 1.0, 2.0);
+        gb.add_gaussian(&mut map, &[-1.0; 3], 1.0, 20.0);
     }
 }

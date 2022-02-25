@@ -114,7 +114,7 @@ where
         map.add_cov(obj, &mut |coord: Coord| {
             if let Some(s) = sim.get_density(coord) {
                 if let Some(e) = exp.get_density(coord) {
-                    moc.add_val(s, e)
+                    moc.add_val(*s, *e)
                 }
             }
             // TODO: We might actually want to track cases where map and model
@@ -140,7 +140,7 @@ where
         map.del_cov(obj, &mut |coord: Coord| {
             if let Some(s) = sim.get_density(coord) {
                 if let Some(e) = exp.get_density(coord) {
-                    moc.del_val(s, e)
+                    moc.del_val(*s, *e)
                 }
             }
         });

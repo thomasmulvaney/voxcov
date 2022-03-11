@@ -182,8 +182,6 @@ pub type DiffCoverageMap = MapRoot<DiffCoverage>;
 /// data structure as insertion is faster and uses less space.
 pub type CoverageMap = MapRoot<Coverage>;
 
-
-
 pub struct GridCoverageMap {
     width: usize,
     grid_width: usize,
@@ -193,11 +191,19 @@ pub struct GridCoverageMap {
 
 impl GridCoverageMap {
     fn new(scale: Vector, origin: Point, width: usize) -> Self {
-        Self { width, grid_width: 16, transform: Transform { origin, scale }, counter_map: HashMap::new() }
+        Self {
+            width,
+            grid_width: 16,
+            transform: Transform { origin, scale },
+            counter_map: HashMap::new(),
+        }
     }
 
-    fn add_cov<B: BoxCoverage + Radius>(&mut self, sphere: &B,
-        f: &mut dyn FnMut([usize; 3])) -> usize {
+    fn add_cov<B: BoxCoverage + Radius>(
+        &mut self,
+        sphere: &B,
+        f: &mut dyn FnMut([usize; 3]),
+    ) -> usize {
         let bb = sphere.bounding_box();
 
         let lc = self.transform.to_voxel(&bb.lower);
@@ -211,18 +217,27 @@ impl GridCoverageMap {
         let ugy = uc[1] / self.grid_width;
         let ugz = uc[2] / self.grid_width;
 
-
         let mut added = 0;
-        for i in lgx..=ugx{
+        for i in lgx..=ugx {
             for j in lgy..=ugy {
                 for k in lgz..=ugz {
-                    let mut g = self.counter_map.entry([i,j,k]).or_insert_with(|| CubeCounter::new(self.grid_width));
+                    let mut g = self
+                        .counter_map
+                        .entry([i, j, k])
+                        .or_insert_with(|| CubeCounter::new(self.grid_width));
                     if !g.is_covered() {
-                        added += g.add_coverage(&[i * self.grid_width, j * self.grid_width, k * self.grid_width],
-                                                self.grid_width,
-                                                &self.transform,
-                                                &sphere.point(),
-                                                sphere.radius(), f);
+                        added += g.add_coverage(
+                            &[
+                                i * self.grid_width,
+                                j * self.grid_width,
+                                k * self.grid_width,
+                            ],
+                            self.grid_width,
+                            &self.transform,
+                            &sphere.point(),
+                            sphere.radius(),
+                            f,
+                        );
                     }
                 }
             }
@@ -250,7 +265,6 @@ impl AddCoverage for GridCoverageMap {
         GridCoverageMap::add_cov(self, obj, f)
     }
 }
-    
 
 /// A naive diff coverage map.  This is just a map
 /// of counters for each voxel.  Every time a voxel is covered
@@ -267,7 +281,6 @@ pub struct NaiveDiffCoverageMap {
     voxel_counters: CubeCounter,
     transform: Transform,
 }
-
 
 impl MapLike for NaiveDiffCoverageMap {
     fn new(scale: Vector, origin: Point, width: usize) -> Self {

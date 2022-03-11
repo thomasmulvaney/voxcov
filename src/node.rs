@@ -171,10 +171,9 @@ impl CubeCounter {
             usize::min(width, uv[2] - offset[2])
         };
 
-
         if xl == xu || yl == yu || zl == zu {
             //println!("OOps {}-{} {}-{} {}-{} | {} {} {} ", xl,xu,yl,yu,zl,zu,offset[0], offset[1], offset[2]);
-            return 0
+            return 0;
         }
         let cut2 = cutoff_dist * cutoff_dist;
         let initial = self.covered;

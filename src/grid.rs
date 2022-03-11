@@ -51,7 +51,10 @@ where
     T: Copy,
 {
     fn set(&mut self, coord: Coord, val: T) {
-        if let Some(e) = self.grid.get_mut(coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2]) {
+        if let Some(e) = self
+            .grid
+            .get_mut(coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2])
+        {
             *e = val;
         }
 
@@ -77,7 +80,6 @@ where
             high[0] = usize::max(coord[0], high[0]);
             high[1] = usize::max(coord[1], high[1]);
             high[2] = usize::max(coord[2], high[2]);
-
         } else {
             self.high = Some(coord);
         }

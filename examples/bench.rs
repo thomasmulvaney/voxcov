@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Write;
 use std::time::Instant;
 use voxcov::coverage::{
-    AddCoverage, Coverage, DiffCoverage, MapLike, MapRoot, NaiveDiffCoverageMap, GridCoverageMap,
+    AddCoverage, Coverage, DiffCoverage, GridCoverageMap, MapLike, MapRoot, NaiveDiffCoverageMap,
 };
 use voxcov::geom::Sphere;
 use voxcov::grid::{Grid, GridLike};
@@ -36,7 +36,7 @@ fn bench_loop<M: MapLike + AddCoverage>(points: &[[f64; 3]], q: &[usize], file: 
             z += map.add_cov(&Sphere::new(*p, *r as f64), &mut |_| ());
         }
         let t = now.elapsed().as_millis();
-        writeln!(&mut w, "{}, {}, {}, {}",r, *r as f64 * 0.225 * 2.5, z, t).unwrap();
+        writeln!(&mut w, "{}, {}, {}, {}", r, *r as f64 * 0.225 * 2.5, z, t).unwrap();
         println!("{} {} {} {} T({})", file, r, *r as f64 * 0.225 * 2.5, z, t);
     }
 }

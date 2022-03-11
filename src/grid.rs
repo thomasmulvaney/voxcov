@@ -19,6 +19,9 @@ impl<T> Grid<T> {
             high: None,
         }
     }
+    pub fn len(&self) -> usize {
+        self.grid.len()
+    }
 }
 
 pub trait GridLike<T> {
@@ -48,11 +51,12 @@ where
     T: Copy,
 {
     fn set(&mut self, coord: Coord, val: T) {
-        self.grid[coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2]] =
-            val;
+        if let Some(e) = self.grid.get_mut(coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2]) {
+            *e = val;
+        }
 
         // track damaged region with a bounding box
-        self.rec(coord);
+        //self.rec(coord);
     }
 
     fn get(&self, coord: Coord) -> Option<&T> {
@@ -73,6 +77,7 @@ where
             high[0] = usize::max(coord[0], high[0]);
             high[1] = usize::max(coord[1], high[1]);
             high[2] = usize::max(coord[2], high[2]);
+
         } else {
             self.high = Some(coord);
         }
@@ -93,9 +98,9 @@ where
         // iterate over any region which has been touched.
         if let Some(low) = self.low {
             if let Some(high) = self.high {
-                for i in low[0]..=high[0] {
-                    for j in low[1]..=high[1] {
-                        for k in low[2]..=high[2] {
+                for i in low[0]..high[0] {
+                    for j in low[1]..high[1] {
+                        for k in low[2]..high[2] {
                             self.set([i, j, k], T::default());
                         }
                     }

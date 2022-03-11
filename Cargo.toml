@@ -1,6 +1,6 @@
 [package]
 name = "voxcov"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Thomas Mulvaney <mulvaney@mailbox.org>"]
 edition = "2021"
 description = "Write something"

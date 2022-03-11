@@ -80,6 +80,7 @@
 
 use crate::geom::{BoundingBox, Coord, Point, Sphere, Transform, Vector};
 use crate::node::{CubeCounter, Node};
+use std::collections::HashMap;
 /// A volume may cover a region of voxels partially, totally or not at all.
 #[derive(PartialEq)]
 pub enum CoverageType {
@@ -181,6 +182,76 @@ pub type DiffCoverageMap = MapRoot<DiffCoverage>;
 /// data structure as insertion is faster and uses less space.
 pub type CoverageMap = MapRoot<Coverage>;
 
+
+
+pub struct GridCoverageMap {
+    width: usize,
+    grid_width: usize,
+    transform: Transform,
+    counter_map: HashMap<Coord, CubeCounter>,
+}
+
+impl GridCoverageMap {
+    fn new(scale: Vector, origin: Point, width: usize) -> Self {
+        Self { width, grid_width: 16, transform: Transform { origin, scale }, counter_map: HashMap::new() }
+    }
+
+    fn add_cov<B: BoxCoverage + Radius>(&mut self, sphere: &B,
+        f: &mut dyn FnMut([usize; 3])) -> usize {
+        let bb = sphere.bounding_box();
+
+        let lc = self.transform.to_voxel(&bb.lower);
+        let uc = self.transform.to_voxel(&bb.upper);
+
+        let lgx = lc[0] / self.grid_width;
+        let lgy = lc[1] / self.grid_width;
+        let lgz = lc[2] / self.grid_width;
+
+        let ugx = uc[0] / self.grid_width;
+        let ugy = uc[1] / self.grid_width;
+        let ugz = uc[2] / self.grid_width;
+
+
+        let mut added = 0;
+        for i in lgx..=ugx{
+            for j in lgy..=ugy {
+                for k in lgz..=ugz {
+                    let mut g = self.counter_map.entry([i,j,k]).or_insert_with(|| CubeCounter::new(self.grid_width));
+                    if !g.is_covered() {
+                        added += g.add_coverage(&[i * self.grid_width, j * self.grid_width, k * self.grid_width],
+                                                self.grid_width,
+                                                &self.transform,
+                                                &sphere.point(),
+                                                sphere.radius(), f);
+                    }
+                }
+            }
+        }
+        added
+    }
+}
+
+impl MapLike for GridCoverageMap {
+    fn new(scale: Vector, origin: Point, width: usize) -> Self {
+        GridCoverageMap::new(scale, origin, width)
+    }
+
+    fn zero(&mut self) {
+        ()
+    }
+}
+
+impl AddCoverage for GridCoverageMap {
+    fn add_cov<B: BoxCoverage + Radius>(
+        &mut self,
+        obj: &B,
+        f: &mut dyn FnMut([usize; 3]),
+    ) -> usize {
+        GridCoverageMap::add_cov(self, obj, f)
+    }
+}
+    
+
 /// A naive diff coverage map.  This is just a map
 /// of counters for each voxel.  Every time a voxel is covered
 /// or uncovered the counters are incremented and decremented.
@@ -196,6 +267,7 @@ pub struct NaiveDiffCoverageMap {
     voxel_counters: CubeCounter,
     transform: Transform,
 }
+
 
 impl MapLike for NaiveDiffCoverageMap {
     fn new(scale: Vector, origin: Point, width: usize) -> Self {
@@ -318,6 +390,7 @@ impl Sphere {
 pub trait Radius {
     fn radius(&self) -> f64;
     fn point(&self) -> Point;
+    fn bounding_box(&self) -> BoundingBox;
 }
 
 impl BoxCoverage for Sphere {
@@ -404,6 +477,10 @@ impl Radius for Sphere {
 
     fn point(&self) -> Point {
         self.point
+    }
+
+    fn bounding_box(&self) -> BoundingBox {
+        self.bounding_box()
     }
 }
 

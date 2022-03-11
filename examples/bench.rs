@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Write;
 use std::time::Instant;
 use voxcov::coverage::{
-    AddCoverage, Coverage, DiffCoverage, MapLike, MapRoot, NaiveDiffCoverageMap,
+    AddCoverage, Coverage, DiffCoverage, MapLike, MapRoot, NaiveDiffCoverageMap, GridCoverageMap,
 };
 use voxcov::geom::Sphere;
 use voxcov::grid::{Grid, GridLike};
@@ -36,8 +36,8 @@ fn bench_loop<M: MapLike + AddCoverage>(points: &[[f64; 3]], q: &[usize], file: 
             z += map.add_cov(&Sphere::new(*p, *r as f64), &mut |_| ());
         }
         let t = now.elapsed().as_millis();
-        writeln!(&mut w, "{}, {}, {}", r, z, t).unwrap();
-        println!("{} {} {} T({})", file, r, z, t);
+        writeln!(&mut w, "{}, {}, {}, {}",r, *r as f64 * 0.225 * 2.5, z, t).unwrap();
+        println!("{} {} {} {} T({})", file, r, *r as f64 * 0.225 * 2.5, z, t);
     }
 }
 fn uniq_vs_total(points: &[[f64; 3]], q: &[usize], file: &str) {
@@ -56,8 +56,10 @@ fn uniq_vs_total(points: &[[f64; 3]], q: &[usize], file: &str) {
 fn main() {
     let stream = include_str!("data/4ki8.xyz");
     let points = read_points_xyz(stream);
+    println!("Points: {}", points.len());
     let q = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20];
     bench_loop::<MapRoot<Coverage>>(&points, &q, "bench_cov.csv");
+    bench_loop::<GridCoverageMap>(&points, &q, "bench_cov.csv");
     bench_loop::<MapRoot<DiffCoverage>>(&points, &q, "bench_diff.csv");
     bench_loop::<NaiveDiffCoverageMap>(&points, &q, "bench_naive.csv");
     uniq_vs_total(&points, &q, "uniq_vs_total.csv");

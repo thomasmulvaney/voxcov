@@ -200,4 +200,12 @@ impl Sphere {
     pub fn new(point: Point, radius: f64) -> Sphere {
         Sphere { point, radius }
     }
+
+    pub fn bounding_box(&self) -> BoundingBox {
+        let radius = self.radius;
+        let point = self.point;
+        let lower = [point[0] - radius, point[1] - radius, point[2] - radius];
+        let upper = [point[0] + radius, point[1] + radius, point[2] + radius];
+        BoundingBox { lower, upper }
+    }
 }

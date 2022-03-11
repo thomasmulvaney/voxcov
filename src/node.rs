@@ -97,15 +97,22 @@ impl<C: Default> Node<C> {
 /// Dense datastructure for counting voxel coverage
 #[derive(Clone)]
 pub struct CubeCounter {
+    covered: usize,
     counters: Grid<u16>,
 }
 
 impl CubeCounter {
     pub fn new(width: usize) -> Self {
         Self {
+            covered: 0,
             counters: Grid::new([width; 3]),
         }
     }
+
+    pub fn is_covered(&self) -> bool {
+        self.covered == self.counters.len()
+    }
+
     pub fn add_coverage(
         &mut self,
         offset: &Coord,
@@ -164,15 +171,20 @@ impl CubeCounter {
             usize::min(width, uv[2] - offset[2])
         };
 
+
+        if xl == xu || yl == yu || zl == zu {
+            //println!("OOps {}-{} {}-{} {}-{} | {} {} {} ", xl,xu,yl,yu,zl,zu,offset[0], offset[1], offset[2]);
+            return 0
+        }
         let cut2 = cutoff_dist * cutoff_dist;
-        let mut added = 0;
+        let initial = self.covered;
         self.counters.rec([xl, yl, zl]);
         self.counters.rec([xu, yu, zu]);
         for k in zl..zu {
             for j in yl..yu {
                 for i in xl..xu {
                     // Lowest point of voxel
-                    let coord: Coord = [i, j, k];
+                    let coord: Coord = [i + offset[0], j + offset[1], k + offset[2]];
                     let mut point: Point = tf.to_real(&coord);
 
                     // Center of voxel
@@ -187,7 +199,7 @@ impl CubeCounter {
                         // Count newly covered voxel
                         if let Some(val) = self.counters.get_mut(coord) {
                             if *val == 0 {
-                                added += 1;
+                                self.covered += 1;
                                 f(coord);
                             }
                             *val += 1;
@@ -196,7 +208,7 @@ impl CubeCounter {
                 }
             }
         }
-        added
+        self.covered - initial
     }
 
     pub fn del_coverage(
@@ -258,7 +270,7 @@ impl CubeCounter {
         };
 
         let cut2 = cutoff_dist * cutoff_dist;
-        let mut deleted = 0;
+        let initial = self.covered;
         for k in zl..zu {
             for j in yl..yu {
                 for i in xl..xu {
@@ -278,7 +290,7 @@ impl CubeCounter {
                         // Count newly covered voxel
                         if let Some(val) = self.counters.get_mut(coord) {
                             if *val == 1 {
-                                deleted += 1;
+                                self.covered -= 1;
                                 f(coord);
                             }
                             *val -= 1;
@@ -287,7 +299,7 @@ impl CubeCounter {
                 }
             }
         }
-        deleted
+        self.covered - initial
     }
 
     pub fn zero(&mut self) {

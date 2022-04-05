@@ -22,6 +22,16 @@ impl<T> Grid<T> {
     pub fn len(&self) -> usize {
         self.grid.len()
     }
+
+    pub fn coord_to_idx(&self, coord: Coord) -> Option<usize> {
+        if coord[0] >= self.size[0] || coord[1] >= self.size[1] || coord[2] >= self.size[2] {
+            return None;
+        }
+        let mut idx = self.size[1] * (self.size[2] * coord[0]);
+        idx = idx + (self.size[2] * coord[1]);
+        idx = idx + coord[2];
+        return Some(idx);
+    }
 }
 
 pub trait GridLike<T> {
@@ -51,20 +61,15 @@ where
     T: Copy,
 {
     fn set(&mut self, coord: Coord, val: T) {
-        if let Some(e) = self
-            .grid
-            .get_mut(coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2])
-        {
-            *e = val;
+        if let Some(idx) = self.coord_to_idx(coord) {
+            if let Some(e) = self.grid.get_mut(idx) {
+                *e = val;
+            }
         }
-
-        // track damaged region with a bounding box
-        //self.rec(coord);
     }
 
     fn get(&self, coord: Coord) -> Option<&T> {
-        self.grid
-            .get(coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2])
+        self.coord_to_idx(coord).map(|idx| &self.grid[idx])
     }
 
     fn rec(&mut self, coord: Coord) {
@@ -89,8 +94,7 @@ where
     where
         T: Default + Copy,
     {
-        self.grid
-            .get_mut(coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2])
+        self.coord_to_idx(coord).map(|idx| &mut self.grid[idx])
     }
 
     fn zero(&mut self)

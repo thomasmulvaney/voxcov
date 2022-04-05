@@ -113,9 +113,9 @@ impl AddGaussianToMap for GaussianBlur {
         // every voxel in the box.
         dens.rec(uv);
         dens.rec(lv);
-        for k in lv[2]..=uv[2] {
+        for i in lv[0]..=uv[0] {
             for j in lv[1]..=uv[1] {
-                for i in lv[0]..=uv[0] {
+                for k in lv[2]..=uv[2] {
                     let center = tf.to_real(&[i, j, k]);
                     let v = gaus.height_at_point(&center) * height;
                     if let Some(d) = dens.get_mut([i, j, k]) {
@@ -174,6 +174,7 @@ pub struct RawMap {
 
 impl RawMap {
     pub fn new(origin: Point, scale: Vector, size: [usize; 3], vec: Vec<f64>) -> Self {
+	assert!(size[0] * size[1] * size[2] == vec.len());
         Self {
             size,
             transform: Transform { origin, scale },
@@ -184,14 +185,19 @@ impl RawMap {
 
 impl GetDensity for RawMap {
     fn get_density(&self, coord: Coord) -> Option<&f64> {
-        let idx = coord[0] + coord[1] * self.size[2] + coord[2] * self.size[1] * self.size[2];
+	if coord[0] >= self.size[0] || coord[1] >= self.size[1] || coord[2] >= self.size[2] {
+	    return None;
+	}
+	let mut idx = self.size[1] * (self.size[2] * coord[0]); 
+	idx = idx + (self.size[2] * coord[1]); 
+	idx = idx + coord[2]; 
         self.densities.get(idx)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::blur::{AddGaussianToMap, GaussianBlur, Map};
+    use crate::blur::{AddGaussianToMap, GaussianBlur, Map, RawMap, GetDensity};
     use approx::relative_eq;
     use std::collections::HashSet;
 
@@ -207,5 +213,35 @@ mod tests {
         gb.add_gaussian(&mut map, &[10.0; 3], 1.0, 10.0);
         gb.add_gaussian(&mut map, &[20.0; 3], 1.0, 2.0);
         gb.add_gaussian(&mut map, &[-1.0; 3], 1.0, 20.0);
+    }
+
+    #[test]
+    fn test_raw_map() {
+	let arr: Vec<f64> = vec![0f64, 0f64, 0f64, 0f64, 0f64, 0f64, 0f64, 1f64];
+        let mut map = RawMap::new([1.0; 3], [0.0; 3], [2; 3], arr);
+	assert_eq!(map.get_density([0,0,0]), Some(&0f64));
+	assert_eq!(map.get_density([1,1,1]), Some(&1f64));
+
+	let arr: Vec<f64> = vec![0f64, 1f64];
+        let mut map = RawMap::new([1.0; 3], [0.0; 3], [1, 1, 2], arr);
+	assert_eq!(map.get_density([0,0,0]), Some(&0f64));
+	assert_eq!(map.get_density([1,0,0]), None);
+	assert_eq!(map.get_density([0,1,0]), None);
+	assert_eq!(map.get_density([0,0,1]), Some(&1f64));
+
+	let arr: Vec<f64> = vec![1f64, 2f64, 3f64, 4f64, 5f64, 6f64, 7f64, 8f64, 9f64, 10f64, 11f64, 12f64];
+        let mut map = RawMap::new([1.0; 3], [0.0; 3], [2, 2, 3], arr);
+	assert_eq!(map.get_density([0,0,0]), Some(&1f64));
+	assert_eq!(map.get_density([0,0,1]), Some(&2f64));
+	assert_eq!(map.get_density([0,0,2]), Some(&3f64));
+	assert_eq!(map.get_density([0,1,0]), Some(&4f64));
+	assert_eq!(map.get_density([0,1,1]), Some(&5f64));
+	assert_eq!(map.get_density([0,1,2]), Some(&6f64));
+	assert_eq!(map.get_density([1,0,0]), Some(&7f64));
+	assert_eq!(map.get_density([1,0,1]), Some(&8f64));
+	assert_eq!(map.get_density([1,0,2]), Some(&9f64));
+	assert_eq!(map.get_density([1,1,0]), Some(&10f64));
+	assert_eq!(map.get_density([1,1,1]), Some(&11f64));
+	assert_eq!(map.get_density([1,1,2]), Some(&12f64));
     }
 }

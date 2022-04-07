@@ -117,6 +117,14 @@ where
                     moc.add_val(*s, *e)
                 }
             }
+            if sim.get_density(coord).is_none() != exp.get_density(coord).is_none() {
+                println!(
+                    "Oops! {:?} {:?} {:?}",
+                    coord,
+                    sim.get_size(),
+                    exp.get_size()
+                );
+            }
             // TODO: We might actually want to track cases where map and model
             // have pixels which don't exist...
         });

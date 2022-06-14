@@ -1,6 +1,6 @@
 [package]
 name = "voxcov"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Thomas Mulvaney <mulvaney@mailbox.org>"]
 edition = "2021"
 description = "Write something"
@@ -13,3 +13,4 @@ name = "voxcov"
 approx = "0.3.2"
 
 [dependencies]
+rayon = "1.5.3"

@@ -221,7 +221,7 @@ impl GridCoverageMap {
         for i in lgx..=ugx {
             for j in lgy..=ugy {
                 for k in lgz..=ugz {
-                    let mut g = self
+                    let g = self
                         .counter_map
                         .entry([i, j, k])
                         .or_insert_with(|| CubeCounter::new(self.grid_width));

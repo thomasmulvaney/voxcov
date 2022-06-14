@@ -68,8 +68,8 @@ impl GaussianRing {
     pub fn new(center: Point, radius: f64, sigma: f64) -> Self {
         GaussianRing {
             center,
-	    sigma,
-	    radius,
+            sigma,
+            radius,
             exp_denom: -1f64 / (2f64 * sigma * sigma),
         }
     }
@@ -87,13 +87,11 @@ impl GaussianRing {
     /// ```
     pub fn height_at_point(&self, point: &Point) -> f64 {
         let d = self.center.dist(point);
-	let v = (self.radius - d);
+        let v = (self.radius - d);
         let w = v * v;
         f64::exp(w * self.exp_denom)
     }
 }
-
-
 
 /// Similiar to TEMPy Gaussian blur but atoms are not snapped to 1A grid.
 ///

@@ -87,7 +87,7 @@ impl GaussianRing {
     /// ```
     pub fn height_at_point(&self, point: &Point) -> f64 {
         let d = self.center.dist(point);
-        let v = (self.radius - d);
+        let v = self.radius - d;
         let w = v * v;
         f64::exp(w * self.exp_denom)
     }

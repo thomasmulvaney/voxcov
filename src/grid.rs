@@ -1,8 +1,8 @@
 use crate::geom::Coord;
 #[derive(Clone)]
 pub struct Grid<T> {
-    grid: Vec<T>,
-    size: Coord,
+    pub grid: Vec<T>,
+    pub size: Coord,
     low: Option<Coord>,
     high: Option<Coord>,
 }

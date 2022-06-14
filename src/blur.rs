@@ -24,6 +24,15 @@ pub struct Gaussian {
     exp_denom: f64,
 }
 
+/// A 3D gaussian ring like function with a width of sigma.
+/// The density is greatest at 'r' from center.
+pub struct GaussianRing {
+    pub center: Point,
+    pub radius: f64,
+    pub sigma: f64,
+    exp_denom: f64,
+}
+
 impl Gaussian {
     /// Create a new 3D gaussian with width of sigma.
     ///
@@ -45,6 +54,46 @@ impl Gaussian {
         f64::exp(w * self.exp_denom)
     }
 }
+
+impl GaussianRing {
+    /// Create a new 3D gaussian ring.
+    ///
+    /// This is useful for building probability maps, from distance matrices.
+    ///
+    /// # Arguments
+    ///
+    /// * `center` - The center of the gaussian ring.
+    /// * `radius` - The distance from the center where the gaussian peaks.
+    /// * `sigma` - The width of the gaussian.
+    pub fn new(center: Point, radius: f64, sigma: f64) -> Self {
+        GaussianRing {
+            center,
+	    sigma,
+	    radius,
+            exp_denom: -1f64 / (2f64 * sigma * sigma),
+        }
+    }
+
+    /// TODO, better function name.
+    ///
+    /// ```
+    /// use voxcov::blur::GaussianRing;
+    /// let gr = GaussianRing::new([0f64; 3], 5.0, 1.0);
+    /// assert!(gr.height_at_point(&[0.0, 0.0, 5.0]) > gr.height_at_point(&[0.0,0.0,4.0]));
+    /// assert!(gr.height_at_point(&[0.0, 0.0, 5.0]) > gr.height_at_point(&[0.0,0.0,6.0]));
+    /// assert!(gr.height_at_point(&[0.0, 0.0, 5.0]) == 1.0);
+    /// assert!(gr.height_at_point(&[0.0, 4.0, 3.0]) == 1.0);
+    /// assert!(gr.height_at_point(&[0.0, 0.0, 4.0]) == gr.height_at_point(&[0.0,0.0,6.0]));
+    /// ```
+    pub fn height_at_point(&self, point: &Point) -> f64 {
+        let d = self.center.dist(point);
+	let v = (self.radius - d);
+        let w = v * v;
+        f64::exp(w * self.exp_denom)
+    }
+}
+
+
 
 /// Similiar to TEMPy Gaussian blur but atoms are not snapped to 1A grid.
 ///
@@ -243,16 +292,16 @@ mod tests {
         ];
         let mut map = RawMap::new([1.0; 3], [0.0; 3], [2, 2, 3], arr);
         assert_eq!(map.get_density([0, 0, 0]), Some(&1f64));
-        assert_eq!(map.get_density([0, 0, 1]), Some(&2f64));
-        assert_eq!(map.get_density([0, 0, 2]), Some(&3f64));
-        assert_eq!(map.get_density([0, 1, 0]), Some(&4f64));
-        assert_eq!(map.get_density([0, 1, 1]), Some(&5f64));
-        assert_eq!(map.get_density([0, 1, 2]), Some(&6f64));
-        assert_eq!(map.get_density([1, 0, 0]), Some(&7f64));
-        assert_eq!(map.get_density([1, 0, 1]), Some(&8f64));
-        assert_eq!(map.get_density([1, 0, 2]), Some(&9f64));
-        assert_eq!(map.get_density([1, 1, 0]), Some(&10f64));
-        assert_eq!(map.get_density([1, 1, 1]), Some(&11f64));
+        assert_eq!(map.get_density([0, 0, 1]), Some(&5f64));
+        assert_eq!(map.get_density([0, 0, 2]), Some(&9f64));
+        assert_eq!(map.get_density([0, 1, 0]), Some(&3f64));
+        assert_eq!(map.get_density([0, 1, 1]), Some(&7f64));
+        assert_eq!(map.get_density([0, 1, 2]), Some(&11f64));
+        assert_eq!(map.get_density([1, 0, 0]), Some(&2f64));
+        assert_eq!(map.get_density([1, 0, 1]), Some(&6f64));
+        assert_eq!(map.get_density([1, 0, 2]), Some(&10f64));
+        assert_eq!(map.get_density([1, 1, 0]), Some(&4f64));
+        assert_eq!(map.get_density([1, 1, 1]), Some(&8f64));
         assert_eq!(map.get_density([1, 1, 2]), Some(&12f64));
     }
 }

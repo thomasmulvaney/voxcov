@@ -28,9 +28,9 @@ impl<T> Grid<T> {
             return None;
         }
         let mut idx = self.size[1] * (self.size[2] * coord[0]);
-        idx = idx + (self.size[2] * coord[1]);
-        idx = idx + coord[2];
-        return Some(idx);
+        idx += self.size[2] * coord[1];
+        idx += coord[2];
+        Some(idx)
     }
 }
 

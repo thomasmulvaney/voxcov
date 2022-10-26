@@ -241,8 +241,8 @@ impl GetDensity for RawMap {
             return None;
         }
         let mut idx = self.size[1] * (self.size[0] * coord[2]);
-        idx = idx + (self.size[0] * coord[1]);
-        idx = idx + coord[0];
+        idx += self.size[0] * coord[1];
+        idx += coord[0];
         self.densities.get(idx)
     }
 
@@ -254,8 +254,6 @@ impl GetDensity for RawMap {
 #[cfg(test)]
 mod tests {
     use crate::blur::{AddGaussianToMap, GaussianBlur, GetDensity, Map, RawMap};
-    use approx::relative_eq;
-    use std::collections::HashSet;
 
     #[test]
     fn test_blur() {
@@ -274,12 +272,12 @@ mod tests {
     #[test]
     fn test_raw_map() {
         let arr: Vec<f64> = vec![0f64, 0f64, 0f64, 0f64, 0f64, 0f64, 0f64, 1f64];
-        let mut map = RawMap::new([1.0; 3], [0.0; 3], [2; 3], arr);
+        let map = RawMap::new([1.0; 3], [0.0; 3], [2; 3], arr);
         assert_eq!(map.get_density([0, 0, 0]), Some(&0f64));
         assert_eq!(map.get_density([1, 1, 1]), Some(&1f64));
 
         let arr: Vec<f64> = vec![0f64, 1f64];
-        let mut map = RawMap::new([1.0; 3], [0.0; 3], [1, 1, 2], arr);
+        let map = RawMap::new([1.0; 3], [0.0; 3], [1, 1, 2], arr);
         assert_eq!(map.get_density([0, 0, 0]), Some(&0f64));
         assert_eq!(map.get_density([1, 0, 0]), None);
         assert_eq!(map.get_density([0, 1, 0]), None);
@@ -288,7 +286,7 @@ mod tests {
         let arr: Vec<f64> = vec![
             1f64, 2f64, 3f64, 4f64, 5f64, 6f64, 7f64, 8f64, 9f64, 10f64, 11f64, 12f64,
         ];
-        let mut map = RawMap::new([1.0; 3], [0.0; 3], [2, 2, 3], arr);
+        let map = RawMap::new([1.0; 3], [0.0; 3], [2, 2, 3], arr);
         assert_eq!(map.get_density([0, 0, 0]), Some(&1f64));
         assert_eq!(map.get_density([0, 0, 1]), Some(&5f64));
         assert_eq!(map.get_density([0, 0, 2]), Some(&9f64));

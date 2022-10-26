@@ -5,7 +5,7 @@ use voxcov::coverage::{
     AddCoverage, Coverage, DiffCoverage, GridCoverageMap, MapLike, MapRoot, NaiveDiffCoverageMap,
 };
 use voxcov::geom::Sphere;
-use voxcov::grid::{Grid, GridLike};
+use voxcov::grid::GridLike;
 
 /// Stolen from https://github.com/ybyygu/rust-octree/blob/master/examples/demo.rs
 fn read_points_xyz(txt: &str) -> Vec<[f64; 3]> {

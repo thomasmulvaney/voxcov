@@ -39,8 +39,10 @@ pub struct MI {
     thresh: f64,
 }
 
+/// Discretize a given range of values linearly.
 struct LinearBin {
     low: f64,
+    high: f64,
     step: f64,
     bins: usize,
 }
@@ -49,8 +51,9 @@ impl LinearBin {
     fn new(low: f64, high: f64, bins: usize) -> Self {
         Self {
             low,
+            high,
             bins,
-            step: (high - low) / (bins as f64),
+            step: (high - low) / ((bins - 1) as f64),
         }
     }
 
@@ -58,8 +61,13 @@ impl LinearBin {
         self.bins
     }
 
-    fn bin(&self, val: f64) -> usize {
-        ((val - self.low) / self.step) as usize
+    /// Returns the bin associated with value
+    fn bin(&self, val: f64) -> Option<usize> {
+        if val > self.high || val < self.low {
+            None
+        } else {
+            Some(((val - self.low) / self.step) as usize)
+        }
     }
 }
 
@@ -68,17 +76,17 @@ impl MI {
         MI {
             x_binner: LinearBin::new(x_low, x_high, x_bins),
             y_binner: LinearBin::new(y_low, y_high, y_bins),
-            matrix: vec![vec![0; y_bins + 1]; x_bins + 1],
-            xs: vec![0; x_bins + 1],
-            ys: vec![0; y_bins + 1],
+            matrix: vec![vec![0; y_bins]; x_bins],
+            xs: vec![0; x_bins],
+            ys: vec![0; y_bins],
             tot: 0,
             thresh: 0.0,
         }
     }
 
     fn add_val(&mut self, s: f64, e: f64) {
-        let sb = self.x_binner.bin(s);
-        let eb = self.y_binner.bin(e);
+        let sb = self.x_binner.bin(s).unwrap();
+        let eb = self.y_binner.bin(e).unwrap();
         self.matrix[sb][eb] += 1;
         self.xs[sb] += 1;
         self.ys[eb] += 1;
@@ -86,8 +94,8 @@ impl MI {
     }
 
     fn del_val(&mut self, s: f64, e: f64) {
-        let sb = self.x_binner.bin(s);
-        let eb = self.y_binner.bin(e);
+        let sb = self.x_binner.bin(s).unwrap();
+        let eb = self.y_binner.bin(e).unwrap();
         self.matrix[sb][eb] -= 1;
         self.xs[sb] -= 1;
         self.ys[eb] -= 1;
@@ -98,14 +106,14 @@ impl MI {
         let mut hx = 0.0;
         let mut hy = 0.0;
         let mut hxy = 0.0;
-        for i in 0..self.x_binner.len() {
-            let x = self.xs[i] as f64 / self.tot as f64;
+        for x in &self.xs {
+            let x = *x as f64 / self.tot as f64;
             if x > self.thresh {
                 hx += -x * x.log(2.0);
             }
         }
-        for j in 0..self.y_binner.len() {
-            let y = self.ys[j] as f64 / self.tot as f64;
+        for y in &self.ys {
+            let y = *y as f64 / self.tot as f64;
             if y > self.thresh {
                 hy += -y * y.log(2.0)
             }
@@ -123,16 +131,16 @@ impl MI {
     }
 
     fn zero(&mut self) {
-        for i in 0..self.x_bins {
+        for i in 0..self.x_binner.len() {
             self.xs[i] = 0;
         }
 
-        for j in 0..self.y_bins {
+        for j in 0..self.y_binner.len() {
             self.ys[j] = 0;
         }
 
-        for i in 0..self.x_bins {
-            for j in 0..self.y_bins {
+        for i in 0..self.x_binner.len() {
+            for j in 0..self.y_binner.len() {
                 self.matrix[i][j] = 0;
             }
         }
@@ -377,11 +385,21 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::MOC;
+    use super::{LinearBin, MOC};
     #[test]
     fn moc_test() {
         let mut moc = MOC::new();
         moc.add_val(1f64, 1f64);
         assert_eq!(moc.get_val(), 1f64);
+    }
+
+    #[test]
+    fn linear_test() {
+        let mut binner = LinearBin::new(2.34, 5.6, 10);
+        assert_eq!(binner.bin(2.34), Some(0));
+        assert_eq!(binner.bin(5.6), Some(9));
+
+        assert_eq!(binner.bin(2.33), None);
+        assert_eq!(binner.bin(5.611), None);
     }
 }

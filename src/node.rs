@@ -98,7 +98,7 @@ impl<C: Default> Node<C> {
 #[derive(Clone)]
 pub struct CubeCounter {
     covered: usize,
-    counters: Grid<u16>,
+    counters: Grid<u32>,
 }
 
 impl CubeCounter {

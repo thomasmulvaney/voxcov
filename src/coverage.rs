@@ -252,7 +252,7 @@ impl MapLike for GridCoverageMap {
     }
 
     fn zero(&mut self) {
-        ()
+        
     }
 }
 

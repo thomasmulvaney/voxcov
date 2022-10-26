@@ -85,8 +85,14 @@ impl MI {
     }
 
     fn add_val(&mut self, s: f64, e: f64) {
-        let sb = self.x_binner.bin(s).unwrap();
-        let eb = self.y_binner.bin(e).unwrap();
+        let sb = self.x_binner.bin(s).expect(&format!(
+            "Value ({}) outside bin range: {}-{}",
+            s, self.x_binner.low, self.x_binner.high
+        ));
+        let eb = self.y_binner.bin(e).expect(&format!(
+            "Value ({}) outside bin range: {}-{}",
+            e, self.y_binner.low, self.y_binner.high
+        ));
         self.matrix[sb][eb] += 1;
         self.xs[sb] += 1;
         self.ys[eb] += 1;

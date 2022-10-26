@@ -251,9 +251,7 @@ impl MapLike for GridCoverageMap {
         GridCoverageMap::new(scale, origin, width)
     }
 
-    fn zero(&mut self) {
-        
-    }
+    fn zero(&mut self) {}
 }
 
 impl AddCoverage for GridCoverageMap {

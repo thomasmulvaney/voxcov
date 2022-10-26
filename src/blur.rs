@@ -254,8 +254,6 @@ impl GetDensity for RawMap {
 #[cfg(test)]
 mod tests {
     use crate::blur::{AddGaussianToMap, GaussianBlur, GetDensity, Map, RawMap};
-    
-    
 
     #[test]
     fn test_blur() {

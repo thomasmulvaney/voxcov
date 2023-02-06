@@ -22,6 +22,7 @@ use crate::grid::{Grid, GridLike};
 pub struct Gaussian {
     center: Point,
     exp_denom: f64,
+    pdf: f64
 }
 
 /// A 3D gaussian ring like function with a width of sigma.
@@ -44,14 +45,22 @@ impl Gaussian {
         Gaussian {
             center,
             exp_denom: -1f64 / (2f64 * sigma * sigma),
+	    pdf: 1f64 / (sigma * f64::sqrt(2f64*std::f64::consts::PI)),
         }
     }
 
     /// TODO, better function name.
     pub fn height_at_point(&self, point: &Point) -> f64 {
+	// use dist2?
         let v = self.center.vector_to(point);
         let w = (v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]);
         f64::exp(w * self.exp_denom)
+    }
+
+    /// Probability density function. Normalize gaussian so, overall area is 1.
+    /// Returns the probability at point.
+    pub fn pdf(&self, point: &Point) -> f64 {
+	self.pdf * self.height_at_point(point)
     }
 }
 
@@ -165,6 +174,9 @@ impl AddGaussianToMap for GaussianBlur {
                 for k in lv[2]..=uv[2] {
                     let center = tf.to_real(&[i, j, k]);
                     let v = gaus.height_at_point(&center) * height;
+		    if v < 0.0 {
+			println!("oop! {}", v);
+		    }
                     if let Some(d) = dens.get_mut([i, j, k]) {
                         *d += v;
                     }
@@ -174,6 +186,7 @@ impl AddGaussianToMap for GaussianBlur {
     }
 }
 
+#[derive(Clone)]
 pub struct Map {
     pub size: [usize; 3],
     pub transform: Transform,

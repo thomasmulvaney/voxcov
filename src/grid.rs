@@ -23,6 +23,19 @@ impl<T> Grid<T> {
         self.grid.len()
     }
 
+    pub fn normalize(&mut self)
+    where
+        T: Default + Copy + std::ops::AddAssign + std::ops::DivAssign,
+    {
+        let mut tot = T::default();
+        for v in &self.grid {
+            tot += *v;
+        }
+        for v in &mut self.grid {
+            *v /= tot;
+        }
+    }
+
     pub fn coord_to_idx(&self, coord: Coord) -> Option<usize> {
         if coord[0] >= self.size[0] || coord[1] >= self.size[1] || coord[2] >= self.size[2] {
             return None;

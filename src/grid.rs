@@ -36,6 +36,17 @@ impl<T> Grid<T> {
         }
     }
 
+    pub fn mean(&self) -> f64
+    where
+        T: Default + Copy + std::ops::AddAssign + std::ops::DivAssign + std::convert::Into<f64>,
+    {
+        let mut tot = T::default();
+        for v in &self.grid {
+            tot += *v;
+        }
+        tot.into() / self.grid.len() as f64
+    }
+
     pub fn coord_to_idx(&self, coord: Coord) -> Option<usize> {
         if coord[0] >= self.size[0] || coord[1] >= self.size[1] || coord[2] >= self.size[2] {
             return None;

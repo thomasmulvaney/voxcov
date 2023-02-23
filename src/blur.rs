@@ -19,10 +19,17 @@ use crate::geom::{Coord, Distance, Point, Transform, Vector};
 use crate::grid::{Grid, GridLike};
 
 /// A 3D gaussian like function with a width of sigma.
+pub struct Gaussian1D {
+    center: f64,
+    exp_denom: f64,
+    pdf: f64,
+}
+
+/// A 3D gaussian like function with a width of sigma.
 pub struct Gaussian {
     center: Point,
     exp_denom: f64,
-    pdf: f64
+    pdf: f64,
 }
 
 /// A 3D gaussian ring like function with a width of sigma.
@@ -32,6 +39,46 @@ pub struct GaussianRing {
     pub radius: f64,
     pub sigma: f64,
     exp_denom: f64,
+}
+
+impl Gaussian1D {
+    /// Create a new 3D gaussian with width of sigma.
+    ///
+    /// # Arguments
+    ///
+    /// * `center` - The center of the gaussian.
+    /// * `sigma` - An array of sigma for each dimension.
+    pub fn new(center: f64, sigma: f64) -> Self {
+        Gaussian1D {
+            center,
+            exp_denom: -1f64 / (2f64 * sigma * sigma),
+            pdf: 1f64 / (sigma * f64::powf((2f64 * std::f64::consts::PI), 1.0 / 2.0)),
+        }
+    }
+
+    /// TODO, better function name.
+    pub fn height_at_point(&self, point: f64) -> f64 {
+        let w = self.center - point;
+        f64::exp(w * w * self.exp_denom)
+    }
+
+    /// Probability density function. Normalize gaussian so, overall area is 1.
+    /// Returns the probability at point.
+    pub fn pdf(&self, point: f64) -> f64 {
+        let r = self.pdf * self.height_at_point(point);
+        if r.is_nan() {
+            return 0f64;
+        }
+
+        if r < 1e-30 {
+            return 0f64;
+        }
+
+        if r > 1f64 {
+            return 1f64;
+        }
+        r
+    }
 }
 
 impl Gaussian {
@@ -45,22 +92,21 @@ impl Gaussian {
         Gaussian {
             center,
             exp_denom: -1f64 / (2f64 * sigma * sigma),
-	    pdf: 1f64 / (sigma * f64::sqrt(2f64*std::f64::consts::PI)),
+            pdf: 1f64
+                / (sigma * sigma * sigma * f64::powf((2f64 * std::f64::consts::PI), 3.0 / 2.0)),
         }
     }
 
     /// TODO, better function name.
     pub fn height_at_point(&self, point: &Point) -> f64 {
-	// use dist2?
-        let v = self.center.vector_to(point);
-        let w = (v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]);
+        let w = self.center.dist2(point);
         f64::exp(w * self.exp_denom)
     }
 
     /// Probability density function. Normalize gaussian so, overall area is 1.
     /// Returns the probability at point.
     pub fn pdf(&self, point: &Point) -> f64 {
-	self.pdf * self.height_at_point(point)
+        self.pdf * self.height_at_point(point)
     }
 }
 
@@ -173,10 +219,11 @@ impl AddGaussianToMap for GaussianBlur {
             for j in lv[1]..=uv[1] {
                 for k in lv[2]..=uv[2] {
                     let center = tf.to_real(&[i, j, k]);
-                    let v = gaus.height_at_point(&center) * height;
-		    if v < 0.0 {
-			println!("oop! {}", v);
-		    }
+                    //let v = gaus.height_at_point(&center) * height;
+                    let v = gaus.pdf(&center) * height;
+                    if v < 0.0 {
+                        println!("oop! {}", v);
+                    }
                     if let Some(d) = dens.get_mut([i, j, k]) {
                         *d += v;
                     }
@@ -245,6 +292,26 @@ impl RawMap {
             transform: Transform { origin, scale },
             densities: vec,
         }
+    }
+
+    pub fn mean(&self) -> f64 {
+        let mut sum = 0f64;
+        for v in &self.densities {
+            sum += *v;
+        }
+        sum / self.densities.len() as f64
+    }
+    pub fn var(&self) -> f64 {
+        let mean = self.mean();
+        let mut sum = 0f64;
+        for v in &self.densities {
+            sum += f64::powf(*v - mean, 2f64);
+        }
+        sum / self.densities.len() as f64
+    }
+
+    pub fn std(&self) -> f64 {
+        self.var().sqrt()
     }
 }
 

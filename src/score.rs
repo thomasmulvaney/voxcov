@@ -40,15 +40,15 @@ pub struct MI {
 }
 
 /// Discretize a given range of values linearly.
-struct LinearBin {
-    low: f64,
-    high: f64,
-    step: f64,
+pub struct LinearBin {
+    pub low: f64,
+    pub high: f64,
+    pub step: f64,
     bins: usize,
 }
 
 impl LinearBin {
-    fn new(low: f64, high: f64, bins: usize) -> Self {
+    pub fn new(low: f64, high: f64, bins: usize) -> Self {
         Self {
             low,
             high,
@@ -62,7 +62,7 @@ impl LinearBin {
     }
 
     /// Returns the bin associated with value
-    fn bin(&self, val: f64) -> Option<usize> {
+    pub fn bin(&self, val: f64) -> Option<usize> {
         if val > self.high || val < self.low {
             None
         } else {

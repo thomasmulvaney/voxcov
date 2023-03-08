@@ -3,8 +3,8 @@ use crate::geom::Coord;
 pub struct Grid<T> {
     pub grid: Vec<T>,
     pub size: Coord,
-    low: Option<Coord>,
-    high: Option<Coord>,
+    pub low: Option<Coord>,
+    pub high: Option<Coord>,
 }
 
 impl<T> Grid<T> {

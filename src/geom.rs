@@ -63,7 +63,7 @@ impl Distance for Point {
 }
 
 /// Transform points from Voxel space (i, j, k) to real space (x, y, z)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct Transform {
     pub origin: Point,
     pub scale: Vector,
@@ -97,6 +97,14 @@ impl Transform {
         [x.ceil() as usize, y.ceil() as usize, z.ceil() as usize]
     }
 }
+
+/// An axis aligned bounding coordinates.
+#[derive(Debug)]
+pub struct BoundingCoord {
+    pub lower: Coord,
+    pub upper: Coord,
+}
+
 
 /// An axis aligned bounding box (AABB).
 #[derive(Debug)]

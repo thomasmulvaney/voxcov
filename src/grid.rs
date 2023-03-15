@@ -125,12 +125,16 @@ where
     where
         T: Default + Copy,
     {
+        for v in &mut self.grid {
+            *v = T::default();
+        }
+        return ();
         // iterate over any region which has been touched.
         if let Some(low) = self.low {
             if let Some(high) = self.high {
-                for i in low[0]..high[0] {
-                    for j in low[1]..high[1] {
-                        for k in low[2]..high[2] {
+                for i in low[0]..=high[0] {
+                    for j in low[1]..=high[1] {
+                        for k in low[2]..=high[2] {
                             self.set([i, j, k], T::default());
                         }
                     }

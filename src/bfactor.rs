@@ -7,7 +7,7 @@ pub struct BoundingBoxIter {
     low: Coord,
     high: Coord,
     c: Coord,
-    done: bool
+    done: bool,
 }
 
 impl BoundingBoxIter {
@@ -46,38 +46,43 @@ impl BoundingBoxIter {
     /// assert!(bi.next() == None);
     /// ```
     pub fn new(low: Coord, high: Coord) -> Self {
-	Self {low, high, c: low, done: false}
+        Self {
+            low,
+            high,
+            c: low,
+            done: false,
+        }
     }
 }
 
 impl Iterator for BoundingBoxIter {
     type Item = Coord;
     fn next(&mut self) -> Option<Coord> {
-	if self.done {
-	    return None
-	}
-	let ret = self.c;
-	if self.c[2] < self.high[2] {
+        if self.done {
+            return None;
+        }
+        let ret = self.c;
+        if self.c[2] < self.high[2] {
             self.c[2] += 1;
-	    return Some(ret);
-	} else {
+            return Some(ret);
+        } else {
             self.c[2] = self.low[2];
         }
-	
-	if self.c[1] < self.high[1] {
+
+        if self.c[1] < self.high[1] {
             self.c[1] += 1;
-	    return Some(ret);
-	} else {
+            return Some(ret);
+        } else {
             self.c[1] = self.low[1];
         }
 
-	if self.c[0] < self.high[0] {
+        if self.c[0] < self.high[0] {
             self.c[0] += 1;
-	    return Some(ret);
-	} else {
-	    self.done = true;
-	}
-	return Some(ret)
+            return Some(ret);
+        } else {
+            self.done = true;
+        }
+        return Some(ret);
     }
 }
 
@@ -100,7 +105,7 @@ pub struct BfactorEstimator {
 }
 
 trait EM {
-    fn sample(&self, data: &mut Map, obs: &RawMap);
+    fn sample(&self, data: &mut Map);
     fn maximise(&mut self, data: &Map, obs: &RawMap);
     fn likelihood(&self, obs: &RawMap) -> f64;
 }
@@ -109,6 +114,10 @@ struct GaussianComp {
     mean: Point,
     sigma: f64,
     weight: f64,
+}
+
+struct UniformComp {
+    mean: f64,
 }
 
 impl GaussianComp {
@@ -125,69 +134,206 @@ impl GaussianComp {
     }
 }
 
+impl UniformComp {
+    fn new(mean: f64) -> Self {
+        Self { mean }
+    }
+
+    fn set_mean(&mut self, mean: f64) {
+        self.mean = mean;
+    }
+}
+
+struct Mean {
+    tot: f64,
+    count: usize,
+}
+
+impl Mean {
+    fn new() -> Self {
+        Self {
+            tot: 0f64,
+            count: 0,
+        }
+    }
+
+    fn add(&mut self, v: f64) {
+        self.tot += v;
+        self.count += 1;
+    }
+
+    fn val(&self) -> f64 {
+        self.tot / self.count as f64
+    }
+}
+
+struct Variance {
+    mean: f64,
+    tot: f64,
+    count: usize,
+}
+
+impl Variance {
+    fn new(mean: f64) -> Self {
+        Self {
+            mean,
+            tot: 0f64,
+            count: 0,
+        }
+    }
+
+    fn add(&mut self, v: f64) {
+        self.tot += (self.mean - v).powf(2.0);
+        self.count += 1;
+    }
+
+    fn val(&self) -> f64 {
+        self.tot / self.count as f64
+    }
+}
+
 impl EM for GaussianComp {
-    fn sample(&self, data: &mut Map, obs: &RawMap) {
+    fn sample(&self, data: &mut Map) {
         let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
-        let cutoff_dist = self.sigma * 3.0;
-        let tf = &obs.transform;
-	let bb = data.get_bounding_coord(pos, cutoff_dist);
+        let cutoff_dist = self.sigma * 4.0;
+        let tf = &data.transform;
+        let bb = data.get_bounding_coord(pos, cutoff_dist);
         let dens = &mut data.densities;
         dens.rec(bb.lower);
         dens.rec(bb.upper);
-	let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
-	for coord in bi {
-	    let center = tf.to_real(&coord);
-	    let v = gaus.pdf(&center) * self.weight;
-	    assert!(!v.is_nan(), "C: {:?} P: {:?}", center, pos);
-	    if let Some(d) = dens.get_mut(coord) {
-		*d += v;
-	    }
-	}
+        let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
+
+        let lv = bb.lower;
+        let uv = bb.upper;
+        for i in lv[0]..=uv[0] {
+            for j in lv[1]..=uv[1] {
+                for k in lv[2]..=uv[2] {
+                    let coord = [i, j, k];
+                    let center = tf.to_real(&coord);
+                    let v = gaus.pdf(&center) * self.weight;
+                    assert!(
+                        !v.is_nan(),
+                        "C: {:?} P: {:?} S: {:?} M: {:?}",
+                        center,
+                        pos,
+                        self.sigma,
+                        self.mean
+                    );
+                    if let Some(d) = dens.get_mut(coord) {
+                        *d += v;
+                    }
+                }
+            }
+        }
     }
     fn maximise(&mut self, data: &Map, obs: &RawMap) {
-	let pos = self.mean;
+        let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
-        let cutoff_dist = self.sigma * 3.0;
+        let cutoff_dist = self.sigma * 2.0;
         let tf = &obs.transform;
-	let bb = data.get_bounding_coord(pos, cutoff_dist);
-	let mut com = MassCenter::new();
-	let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
-	for coord in bi {
-	    let center = tf.to_real(&coord);
-	    let v = gaus.pdf(&center) * self.weight;
-	    let t = *obs.get_density(coord).unwrap_or(&0f64);
-	    let denom = *data.get_density(coord).unwrap_or(&0f64);
-	    let nom = v;
-	    let gamma = nom / denom;
-	    let resp = gamma * t;
-	    com.add_mass(&center, resp);
-	}
-	self.set_mean(com.center())
+        let bb = data.get_bounding_coord(pos, cutoff_dist);
+
+        let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
+        let mut com = MassCenter::new();
+        for coord in bi {
+            let center = tf.to_real(&coord);
+            let v = gaus.pdf(&center) * self.weight;
+            let t = *obs.get_density(coord).unwrap_or(&0f64);
+            let denom = *data.get_density(coord).unwrap_or(&0f64);
+            let nom = v;
+            let gamma = nom / denom;
+            let resp = gamma * t;
+            com.add_mass(&center, resp);
+        }
+        //self.mean = com.center();
+
+        let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
+        let mut moment = Moment::new(self.mean);
+
+        let lv = bb.lower;
+        let uv = bb.upper;
+        for i in lv[0]..=uv[0] {
+            for j in lv[1]..=uv[1] {
+                for k in lv[2]..=uv[2] {
+                    let coord = [i, j, k];
+                    let center = tf.to_real(&coord);
+                    let v = gaus.pdf(&center) * self.weight;
+                    let t = *obs.get_density(coord).unwrap_or(&0f64);
+                    let denom = *data.get_density(coord).unwrap_or(&0f64);
+                    let nom = v;
+                    let gamma = nom / denom;
+                    let resp = gamma * t;
+                    moment.add_mass(&center, resp);
+                }
+            }
+        }
+        self.sigma = moment.variance();
     }
     fn likelihood(&self, obs: &RawMap) -> f64 {
         0f64
     }
 }
 
-struct Mixture {
+impl EM for UniformComp {
+    fn sample(&self, data: &mut Map) {
+        data.add(self.mean);
+        return ();
+        let dens = &mut data.densities;
+        let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
+
+        for coord in bi {
+            if let Some(d) = dens.get_mut(coord) {
+                if *d > 0f64 {
+                    *d += self.mean;
+                }
+            }
+        }
+    }
+    fn maximise(&mut self, data: &Map, obs: &RawMap) {
+        let dens = &data.densities;
+        let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
+        let mut tot = 0f64;
+        tot = data.sum();
+        //println!("{}", tot);
+        let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
+        let mut mean = Mean::new();
+        for coord in bi {
+            let t = *obs.get_density(coord).unwrap_or(&0f64);
+            let d = *data.get_density(coord).unwrap_or(&0f64);
+            let denom = d / tot;
+            let gamma = self.mean / denom;
+            let resp = gamma * t;
+            if d > self.mean {
+                mean.add(resp);
+            }
+        }
+        let m = mean.val();
+        self.set_mean(m);
+    }
+    fn likelihood(&self, obs: &RawMap) -> f64 {
+        0f64
+    }
+}
+
+pub struct Mixture {
     gaussians: Vec<GaussianComp>,
-    noise: UniformDist,
+    noise: UniformComp,
     obs: RawMap,
     data: Map,
 }
 
 impl Mixture {
-    fn new(data: Map, obs: RawMap) -> Self {
+    pub fn new(data: Map, obs: RawMap) -> Self {
         Self {
             gaussians: vec![],
-            noise: UniformDist::new(),
+            noise: UniformComp::new(1e-9f64),
             data,
             obs,
         }
     }
 
-    fn add_gaussian(&mut self, mean: Point, sigma: f64, weight: f64) {
+    pub fn add_gaussian(&mut self, mean: Point, sigma: f64, weight: f64) {
         self.gaussians.push(GaussianComp::new(mean, sigma, weight));
     }
 
@@ -200,13 +346,38 @@ impl Mixture {
         }
     }
 
-    /// Run an expectation cycle.
-    fn expect(&mut self, data: &mut Map, obs: &RawMap) {
+    pub fn step(&mut self) {
+        self.expect();
+        self.maximise();
+    }
+
+    /// Run an expectation cycle.  Sample from the distribution,
+    /// adding to data.
+    fn expect(&mut self) {
         self.data.zero();
         for g in &self.gaussians {
-            g.sample(&mut self.data, &self.obs);
+            g.sample(&mut self.data);
         }
-        self.noise.sample(&mut self.data, &self.obs);
+        self.noise.sample(&mut self.data);
+    }
+
+    pub fn mean(&self, idx: usize) -> Point {
+        self.gaussians[idx].mean
+    }
+
+    pub fn noise(&self) -> f64 {
+        self.noise.mean
+    }
+
+    pub fn sigma(&self, idx: usize) -> f64 {
+        self.gaussians[idx].sigma
+    }
+
+    fn maximise(&mut self) {
+        for g in &mut self.gaussians {
+            g.maximise(&self.data, &self.obs);
+        }
+        self.noise.maximise(&self.data, &self.obs);
     }
 
     fn likelihood(&self) -> f64 {
@@ -282,24 +453,6 @@ impl UniformDist {
 
     fn prob(&self) -> f64 {
         self.mean // * self.weight
-    }
-}
-
-impl EM for UniformDist {
-    fn sample(&self, data: &mut Map, obs: &RawMap) {
-        let lo = data.densities.low.unwrap();
-        let hi = data.densities.high.unwrap();
-	let mut bi = BoundingBoxIter::new(lo,hi);
-	for coord in bi {
-	    if let Some(d) = data.densities.get_mut(coord) {
-		*d += self.mean;
-	    }
-        }
-    }
-    fn maximise(&mut self, data: &Map, obs: &RawMap) {}
-
-    fn likelihood(&self, obs: &RawMap) -> f64 {
-        0f64
     }
 }
 
@@ -739,7 +892,7 @@ impl BfactorEstimator {
         uv[1] = usize::min(self.t.size[1] - 1, uv[1]);
         uv[2] = usize::min(self.t.size[2] - 1, uv[2]);
 
-        let mut com  = MassCenter::new();
+        let mut com = MassCenter::new();
         for i in lv[0]..=uv[0] {
             for j in lv[1]..=uv[1] {
                 for k in lv[2]..=uv[2] {

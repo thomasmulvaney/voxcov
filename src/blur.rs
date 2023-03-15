@@ -15,7 +15,7 @@
 
 //! Functions for blurring structures and building simulated density maps.
 
-use crate::geom::{Coord, Distance, Point, Transform, Vector, BoundingCoord};
+use crate::geom::{BoundingCoord, Coord, Distance, Point, Transform, Vector};
 use crate::grid::{Grid, GridLike};
 
 /// A 3D gaussian like function with a width of sigma.
@@ -189,7 +189,7 @@ impl AddGaussianToMap for GaussianBlur {
         let gaus = Gaussian::new(*position, sigma);
         let cutoff_dist = self.cutoff * sigma;
         let tf = &map.transform;
-	let bb = map.get_bounding_coord(*position, cutoff_dist);
+        let bb = map.get_bounding_coord(*position, cutoff_dist);
         let dens = &mut map.densities;
         // We should blur voxels with in radius of cutoff but for now just do
         // every voxel in the box.
@@ -248,7 +248,10 @@ pub trait GetDensity {
         uv[0] = usize::min(size[0] - 1, uv[0]);
         uv[1] = usize::min(size[1] - 1, uv[1]);
         uv[2] = usize::min(size[2] - 1, uv[2]);
-	BoundingCoord { lower: lv, upper: uv }
+        BoundingCoord {
+            lower: lv,
+            upper: uv,
+        }
     }
 }
 
@@ -269,10 +272,24 @@ impl Map {
         }
     }
 
-    
-
     pub fn zero(&mut self) {
         self.densities.zero();
+    }
+
+    pub fn add(&mut self, a: f64) {
+        for v in &mut self.densities.grid {
+            *v += a;
+        }
+        self.densities.rec([0, 0, 0]);
+        self.densities.rec(self.densities.size);
+    }
+
+    pub fn sum(&self) -> f64 {
+        let mut sum = 0f64;
+        for v in &self.densities.grid {
+            sum += *v;
+        }
+        sum
     }
 }
 
@@ -285,7 +302,7 @@ impl GetDensity for Map {
         self.size
     }
 
-    fn get_transform(&self) -> Transform { 
+    fn get_transform(&self) -> Transform {
         self.transform
     }
 }
@@ -307,12 +324,17 @@ impl RawMap {
     }
 
     pub fn mean(&self) -> f64 {
+        let sum = self.sum();
+        sum / self.densities.len() as f64
+    }
+    pub fn sum(&self) -> f64 {
         let mut sum = 0f64;
         for v in &self.densities {
             sum += *v;
         }
-        sum / self.densities.len() as f64
+        sum
     }
+
     pub fn var(&self) -> f64 {
         let mean = self.mean();
         let mut sum = 0f64;
@@ -350,7 +372,7 @@ impl GetDensity for RawMap {
         self.size
     }
 
-    fn get_transform(&self) -> Transform { 
+    fn get_transform(&self) -> Transform {
         self.transform
     }
 }

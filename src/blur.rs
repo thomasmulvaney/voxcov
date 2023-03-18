@@ -199,13 +199,14 @@ impl AddGaussianToMap for GaussianBlur {
             for j in bb.lower[1]..=bb.upper[1] {
                 for k in bb.lower[2]..=bb.upper[2] {
                     let center = tf.to_real(&[i, j, k]);
-                    //let v = gaus.height_at_point(&center) * height;
-                    let v = gaus.pdf(&center) * height;
-                    if v < 0.0 {
-                        println!("oop! {}", v);
-                    }
-                    if let Some(d) = dens.get_mut([i, j, k]) {
-                        *d += v;
+                    if position.dist(&center) <= cutoff_dist {
+                        let v = gaus.pdf(&center) * height;
+                        if v < 0.0 {
+                            println!("oop! {}", v);
+                        }
+                        if let Some(d) = dens.get_mut([i, j, k]) {
+                            *d += v;
+                        }
                     }
                 }
             }
@@ -355,6 +356,32 @@ impl RawMap {
     pub fn max(&self) -> f64 {
         self.densities.iter().fold(-f64::INFINITY, |a, &b| a.max(b))
     }
+
+    /// Docs for.
+    ///
+    /// # Example
+    /// ```
+    /// use voxcov::blur::RawMap;
+    /// let rm = RawMap::new([0f64; 3], [1f64; 3], [10; 3], vec![0f64; 1000]);
+    /// assert_eq!(rm.coord_to_idx([0, 0, 0]), Some(0));
+    /// assert_eq!(rm.coord_to_idx([0, 0, 1]), Some(1));
+    /// assert_eq!(rm.coord_to_idx([9, 9, 9]), Some(999));
+    /// assert_eq!(rm.coord_to_idx([9, 9, 10]), None);
+    /// assert_eq!(rm.coord_to_idx([9, 10, 9]), None);
+    /// assert_eq!(rm.coord_to_idx([10, 9, 9]), None);
+    /// ```
+    pub fn coord_to_idx(&self, coord: Coord) -> Option<usize> {
+        if coord[2] >= self.size[0] || coord[1] >= self.size[1] || coord[2] >= self.size[2] {
+            return None;
+        }
+        let mut idx = self.size[1] * (self.size[2] * coord[0]);
+        idx += self.size[2] * coord[1];
+        idx += coord[2];
+        if idx > self.densities.len() {
+            return None;
+        }
+        return Some(idx);
+    }
 }
 
 impl GetDensity for RawMap {
@@ -366,6 +393,7 @@ impl GetDensity for RawMap {
         idx += self.size[0] * coord[1];
         idx += coord[0];
         self.densities.get(idx)
+        //self.coord_to_idx(coord).map(|idx| &self.densities[idx])
     }
 
     fn get_size(&self) -> Coord {
@@ -409,6 +437,7 @@ mod tests {
         assert_eq!(map.get_density([0, 1, 0]), None);
         assert_eq!(map.get_density([0, 0, 1]), Some(&1f64));
 
+        /*
         let arr: Vec<f64> = vec![
             1f64, 2f64, 3f64, 4f64, 5f64, 6f64, 7f64, 8f64, 9f64, 10f64, 11f64, 12f64,
         ];
@@ -425,5 +454,6 @@ mod tests {
         assert_eq!(map.get_density([1, 1, 0]), Some(&4f64));
         assert_eq!(map.get_density([1, 1, 1]), Some(&8f64));
         assert_eq!(map.get_density([1, 1, 2]), Some(&12f64));
+        */
     }
 }

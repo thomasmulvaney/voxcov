@@ -106,7 +106,7 @@ pub struct BfactorEstimator {
 
 trait EM {
     fn sample(&self, data: &mut Map);
-    fn maximise(&mut self, data: &Map, obs: &RawMap);
+    fn maximise(&mut self, data: &Map, obs: &RawMap, back: f64, sigma: f64);
     fn mean(&self, data: &Map, obs: &RawMap) -> Point;
     fn likelihood(&self, obs: &RawMap) -> f64;
 }
@@ -119,6 +119,8 @@ struct GaussianComp {
 
 struct UniformComp {
     mean: f64,
+    // Measuring the variance is useful for thresholding.
+    sigma: f64,
 }
 
 impl GaussianComp {
@@ -137,7 +139,7 @@ impl GaussianComp {
 
 impl UniformComp {
     fn new(mean: f64) -> Self {
-        Self { mean }
+        Self { mean, sigma: 0.0 }
     }
 
     fn set_mean(&mut self, mean: f64) {
@@ -168,6 +170,31 @@ impl Mean {
     }
 }
 
+struct Variance {
+    mean: f64,
+    tot: f64,
+    count: usize,
+}
+
+impl Variance {
+    fn new(mean: f64) -> Self {
+        Self {
+            mean,
+            tot: 0f64,
+            count: 0,
+        }
+    }
+
+    fn add(&mut self, v: f64) {
+        self.tot += (self.mean - v).powf(2.0);
+        self.count += 1;
+    }
+
+    fn val(&self) -> f64 {
+        (self.tot / self.count as f64).sqrt()
+    }
+}
+
 impl EM for GaussianComp {
     fn sample(&self, data: &mut Map) {
         let blur = GaussianBlur::new(4.0);
@@ -175,10 +202,12 @@ impl EM for GaussianComp {
         return ();
     }
 
-    fn maximise(&mut self, data: &Map, obs: &RawMap) {
+    fn maximise(&mut self, data: &Map, obs: &RawMap, back: f64, sigma: f64) {
         let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
-        let cutoff_dist = f64::max(0.5, self.sigma) * 4.0;
+        //let sigma = f64::max(0.25, self.sigma);
+        //let sigma = f64::max(1.0, self.sigma);
+        let cutoff_dist = self.sigma * 4.0;
         let tf = &obs.transform;
         let bb = data.get_bounding_coord(pos, cutoff_dist);
 
@@ -194,13 +223,11 @@ impl EM for GaussianComp {
                     let coord = [i, j, k];
                     let center = tf.to_real(&coord);
                     if self.mean.dist(&center) <= cutoff_dist {
-                        let v = gaus.pdf(&center) * self.weight;
-                        if v > 0.0 {
-                            q += 1;
-                            let t = *obs.get_density(coord).unwrap_or(&0f64);
-                            let denom = *data.get_density(coord).unwrap_or(&0f64);
-                            let nom = v;
-                            let gamma = nom / denom;
+                        let nom = gaus.pdf(&center) * self.weight;
+                        let t = *obs.get_density(coord).unwrap_or(&0f64);
+                        let denom = *data.get_density(coord).unwrap_or(&0f64);
+                        let gamma = nom / denom;
+                        if denom > 0.0 + (0.0 * sigma) {
                             let resp = gamma * t;
                             moment.add_mass(&center, resp);
                         }
@@ -220,7 +247,7 @@ impl EM for GaussianComp {
     fn mean(&self, data: &Map, obs: &RawMap) -> Point {
         let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
-        let cutoff_dist = f64::max(0.5, self.sigma) * 4.0;
+        let cutoff_dist = 1.5; //f64::max(0.5, self.sigma) * 2.0;
         let tf = &obs.transform;
         let bb = data.get_bounding_coord(pos, cutoff_dist);
 
@@ -242,8 +269,10 @@ impl EM for GaussianComp {
                         let denom = *data.get_density(coord).unwrap_or(&0f64);
                         let nom = v;
                         let gamma = nom / denom;
-                        let resp = gamma * t;
-                        com.add_mass(&center, resp);
+                        if gamma > 1e-7 {
+                            let resp = gamma * t;
+                            com.add_mass(&center, resp);
+                        }
                     }
                 }
             }
@@ -260,18 +289,10 @@ impl EM for UniformComp {
     fn sample(&self, data: &mut Map) {
         data.add(self.mean);
     }
-    fn maximise(&mut self, data: &Map, obs: &RawMap) {
+    fn maximise(&mut self, data: &Map, obs: &RawMap, back: f64, sigma: f64) {
         let dens = &data.densities;
         let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
         let mut tot = 0f64;
-
-        for coord in bi {
-            let d = *data.get_density(coord).unwrap_or(&0f64);
-            if d > self.mean {
-                tot += d;
-            }
-        }
-
         tot = data.sum();
         let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
         let mut mean = Mean::new();
@@ -287,12 +308,28 @@ impl EM for UniformComp {
                 mean.add(resp);
             }
         }
+
+        let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
+        let mut var = Variance::new(mean.val());
+        for coord in bi {
+            let t = *obs.get_density(coord).unwrap_or(&0f64);
+            let d = *data.get_density(coord).unwrap_or(&0f64);
+            let denom = d / tot;
+            let gamma = self.mean / denom;
+            let resp = gamma * t;
+            if d > 0.0 {
+                //if d > self.mean {
+                var.add(resp);
+            }
+        }
+        println!("BG var: {}", var.val());
+        self.sigma = var.val();
         let old_mean = self.mean;
         let new_mean = mean.val();
         //self.mean = new_mean;
         let mean_delta = new_mean - self.mean;
-        let boosted = self.mean + (mean_delta * 1000.0);
-        if boosted > 0f64 {
+        let boosted = self.mean + (mean_delta * 100.0);
+        if boosted > self.mean * 0.01 && boosted < self.mean * 100.0 {
             self.mean = boosted;
         } else {
             self.mean = new_mean;
@@ -321,7 +358,7 @@ impl Mixture {
         println!("Init mean: {}", obs.mean());
         Self {
             gaussians: vec![],
-            noise: UniformComp::new(obs.mean() * 10.0),
+            noise: UniformComp::new(obs.mean() * 1.0),
             data,
             obs,
         }
@@ -377,9 +414,9 @@ impl Mixture {
 
     fn maximise(&mut self) {
         for g in &mut self.gaussians {
-            g.maximise(&self.data, &self.obs);
+            g.maximise(&self.data, &self.obs, self.noise.mean, self.noise.sigma);
         }
-        self.noise.maximise(&self.data, &self.obs);
+        self.noise.maximise(&self.data, &self.obs, 0.0, 0.0);
     }
 
     fn likelihood(&self) -> f64 {
@@ -649,7 +686,6 @@ struct Moment {
     dx2: f64,
     dy2: f64,
     dz2: f64,
-    d2: f64,
     mass: f64,
 }
 
@@ -660,7 +696,6 @@ impl Moment {
             dx2: 0f64,
             dy2: 0f64,
             dz2: 0f64,
-            d2: 0f64,
             mass: 0f64,
         }
     }
@@ -669,7 +704,6 @@ impl Moment {
         self.dx2 += (self.center[0] - point[0]).powf(2.0) * mass;
         self.dy2 += (self.center[1] - point[1]).powf(2.0) * mass;
         self.dz2 += (self.center[2] - point[2]).powf(2.0) * mass;
-        self.d2 += self.center.dist2(point) * mass;
         self.mass += mass;
     }
 
@@ -677,8 +711,13 @@ impl Moment {
         let px = (self.dx2 / self.mass).sqrt();
         let py = (self.dy2 / self.mass).sqrt();
         let pz = (self.dz2 / self.mass).sqrt();
+        let mut ret = f64::NEG_INFINITY;
+        ret = ret.max(px);
+        ret = ret.max(py);
+        ret = ret.max(pz);
+        //return ret;
+
         return (px + py + pz) / 3.0;
-        //return (self.d2 / self.mass).powf(1.0 / 2.0); // / 3.0;
     }
 }
 

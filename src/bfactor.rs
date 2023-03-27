@@ -247,7 +247,7 @@ impl EM for GaussianComp {
     fn mean(&self, data: &Map, obs: &RawMap) -> Point {
         let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
-        let cutoff_dist = 1.5; //f64::max(0.5, self.sigma) * 2.0;
+        let cutoff_dist = f64::max(0.5, self.sigma) * 4.0;
         let tf = &obs.transform;
         let bb = data.get_bounding_coord(pos, cutoff_dist);
 
@@ -269,7 +269,7 @@ impl EM for GaussianComp {
                         let denom = *data.get_density(coord).unwrap_or(&0f64);
                         let nom = v;
                         let gamma = nom / denom;
-                        if gamma > 1e-7 {
+                        if gamma > 0.0 {
                             let resp = gamma * t;
                             com.add_mass(&center, resp);
                         }

@@ -2,6 +2,8 @@ use crate::blur::{AddGaussianToMap, Gaussian, Gaussian1D, GaussianBlur, GetDensi
 use crate::geom::{Coord, Distance, Point};
 use crate::grid::{Grid, GridLike};
 use crate::score::LinearBin;
+use crate::search::DamageTracker;
+use std::time::{Duration, Instant};
 
 pub struct BoundingBoxIter {
     low: Coord,
@@ -106,19 +108,21 @@ pub struct BfactorEstimator {
 
 trait EM {
     fn sample(&self, data: &mut Map);
-    fn maximise(&mut self, data: &Map, obs: &RawMap, back: f64, sigma: f64);
-    fn mean(&self, data: &Map, obs: &RawMap) -> Point;
-    fn likelihood(&self, obs: &RawMap) -> f64;
+    fn maximise(&mut self, data: &Map, obs: &Map, back: f64, sigma: f64);
+    fn mean(&self, data: &Map, obs: &Map) -> Point;
+    fn likelihood(&self, obs: &Map) -> f64;
 }
 
 struct GaussianComp {
     mean: Point,
     sigma: f64,
+    prev_sigma: f64,
     weight: f64,
 }
 
 struct UniformComp {
     mean: f64,
+    prev_mean: f64,
     // Measuring the variance is useful for thresholding.
     sigma: f64,
 }
@@ -128,6 +132,7 @@ impl GaussianComp {
         Self {
             mean,
             sigma,
+            prev_sigma: 0.0,
             weight,
         }
     }
@@ -135,15 +140,27 @@ impl GaussianComp {
     fn set_mean(&mut self, mean: Point) {
         self.mean = mean;
     }
+
+    fn has_changed(&self) -> bool {
+        (self.prev_sigma - self.sigma).abs() > 0.1
+    }
 }
 
 impl UniformComp {
     fn new(mean: f64) -> Self {
-        Self { mean, sigma: 0.0 }
+        Self {
+            mean,
+            sigma: 0.0,
+            prev_mean: 0.0,
+        }
     }
 
     fn set_mean(&mut self, mean: f64) {
         self.mean = mean;
+    }
+
+    fn has_changed(&self) -> bool {
+        (self.prev_mean - self.mean).abs() > 1e-7
     }
 }
 
@@ -198,15 +215,17 @@ impl Variance {
 impl EM for GaussianComp {
     fn sample(&self, data: &mut Map) {
         let blur = GaussianBlur::new(4.0);
-        blur.add_gaussian(data, &self.mean, self.weight, self.sigma);
-        return ();
+        if self.has_changed() {
+            if self.prev_sigma > 0.0 {
+                blur.add_gaussian(data, &self.mean, self.weight * -1.0, self.prev_sigma);
+            }
+            blur.add_gaussian(data, &self.mean, self.weight, self.sigma);
+        }
     }
 
-    fn maximise(&mut self, data: &Map, obs: &RawMap, back: f64, sigma: f64) {
+    fn maximise(&mut self, data: &Map, obs: &Map, back: f64, sigma: f64) {
         let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
-        //let sigma = f64::max(0.25, self.sigma);
-        //let sigma = f64::max(1.0, self.sigma);
         let cutoff_dist = self.sigma * 4.0;
         let tf = &obs.transform;
         let bb = data.get_bounding_coord(pos, cutoff_dist);
@@ -214,37 +233,29 @@ impl EM for GaussianComp {
         let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
         let mut moment = Moment::new(self.mean);
 
-        let lv = bb.lower;
-        let uv = bb.upper;
-        let mut q = 0;
-        for i in lv[0]..=uv[0] {
-            for j in lv[1]..=uv[1] {
-                for k in lv[2]..=uv[2] {
-                    let coord = [i, j, k];
-                    let center = tf.to_real(&coord);
-                    if self.mean.dist(&center) <= cutoff_dist {
-                        let nom = gaus.pdf(&center) * self.weight;
-                        let t = *obs.get_density(coord).unwrap_or(&0f64);
-                        let denom = *data.get_density(coord).unwrap_or(&0f64);
-                        let gamma = nom / denom;
-                        if denom > 0.0 + (0.0 * sigma) {
-                            let resp = gamma * t;
-                            moment.add_mass(&center, resp);
-                        }
-                    }
+        for coord in bi {
+            let center = tf.to_real(&coord);
+            if self.mean.dist(&center) <= cutoff_dist {
+                let nom = gaus.pdf(&center) * self.weight;
+                let t = *obs.get_density(coord).unwrap_or(&0f64);
+                let denom = *data.get_density(coord).unwrap_or(&0f64);
+                let gamma = nom / denom;
+                if denom > 0.0 + (0.0 * sigma) {
+                    let resp = gamma * t;
+                    moment.add_mass(&center, resp);
                 }
             }
         }
         let sigma = moment.variance();
+        self.prev_sigma = self.sigma;
         if sigma.is_nan() {
-            println!("Q: {}", q);
             self.sigma = 1.0;
         } else {
             self.sigma = sigma; //+= diff * 0.5;
         }
     }
 
-    fn mean(&self, data: &Map, obs: &RawMap) -> Point {
+    fn mean(&self, data: &Map, obs: &Map) -> Point {
         let pos = self.mean;
         let gaus = Gaussian::new(self.mean, self.sigma);
         let cutoff_dist = f64::max(0.5, self.sigma) * 4.0;
@@ -254,79 +265,63 @@ impl EM for GaussianComp {
         let mut bi = BoundingBoxIter::new(bb.lower, bb.upper);
         let mut com = MassCenter::new();
 
-        let lv = bb.lower;
-        let uv = bb.upper;
-        let mut q = 0;
-        for i in lv[0]..=uv[0] {
-            for j in lv[1]..=uv[1] {
-                for k in lv[2]..=uv[2] {
-                    let coord = [i, j, k];
-                    let center = tf.to_real(&coord);
-                    if self.mean.dist(&center) <= cutoff_dist {
-                        let v = gaus.pdf(&center) * self.weight;
-                        q += 1;
-                        let t = *obs.get_density(coord).unwrap_or(&0f64);
-                        let denom = *data.get_density(coord).unwrap_or(&0f64);
-                        let nom = v;
-                        let gamma = nom / denom;
-                        if gamma > 0.0 {
-                            let resp = gamma * t;
-                            com.add_mass(&center, resp);
-                        }
-                    }
+        for coord in bi {
+            let center = tf.to_real(&coord);
+            if self.mean.dist(&center) <= cutoff_dist {
+                let v = gaus.pdf(&center) * self.weight;
+                let t = *obs.get_density(coord).unwrap_or(&0f64);
+                let denom = *data.get_density(coord).unwrap_or(&0f64);
+                let nom = v;
+                let gamma = nom / denom;
+                if gamma > 0.0 {
+                    let resp = gamma * t;
+                    com.add_mass(&center, resp);
                 }
             }
         }
         com.center()
     }
 
-    fn likelihood(&self, obs: &RawMap) -> f64 {
+    fn likelihood(&self, obs: &Map) -> f64 {
         0f64
     }
 }
 
 impl EM for UniformComp {
     fn sample(&self, data: &mut Map) {
-        data.add(self.mean);
+        if self.has_changed() {
+            data.add(self.mean - self.prev_mean);
+        }
     }
-    fn maximise(&mut self, data: &Map, obs: &RawMap, back: f64, sigma: f64) {
+    fn maximise(&mut self, data: &Map, obs: &Map, back: f64, sigma: f64) {
+        self.prev_mean = self.mean;
         let dens = &data.densities;
-        let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
-        let mut tot = 0f64;
-        tot = data.sum();
+        let tot = data.sum();
         let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
         let mut mean = Mean::new();
 
-        for coord in bi {
-            let t = *obs.get_density(coord).unwrap_or(&0f64);
-            let d = *data.get_density(coord).unwrap_or(&0f64);
+        for (t, d) in obs.densities.grid.iter().zip(data.densities.grid.iter()) {
             let denom = d / tot;
             let gamma = self.mean / denom;
             let resp = gamma * t;
-            if d > 0.0 {
-                //if d > self.mean {
+            if *d > 0.0 {
                 mean.add(resp);
             }
         }
 
-        let mut bi = BoundingBoxIter::new(dens.low.unwrap(), dens.high.unwrap());
-        let mut var = Variance::new(mean.val());
-        for coord in bi {
-            let t = *obs.get_density(coord).unwrap_or(&0f64);
-            let d = *data.get_density(coord).unwrap_or(&0f64);
+        let mut var = Variance::new(self.mean);
+
+        for (t, d) in obs.densities.grid.iter().zip(data.densities.grid.iter()) {
             let denom = d / tot;
             let gamma = self.mean / denom;
             let resp = gamma * t;
-            if d > 0.0 {
-                //if d > self.mean {
+            if *d > 0.0 {
                 var.add(resp);
             }
         }
-        println!("BG var: {}", var.val());
         self.sigma = var.val();
         let old_mean = self.mean;
         let new_mean = mean.val();
-        //self.mean = new_mean;
         let mean_delta = new_mean - self.mean;
         let boosted = self.mean + (mean_delta * 100.0);
         if boosted > self.mean * 0.01 && boosted < self.mean * 100.0 {
@@ -334,14 +329,12 @@ impl EM for UniformComp {
         } else {
             self.mean = new_mean;
         }
-        println!("Change in noise: {:.3e}", self.mean - old_mean);
-        //self.mean = new_mean;
     }
 
-    fn mean(&self, data: &Map, obs: &RawMap) -> Point {
+    fn mean(&self, data: &Map, obs: &Map) -> Point {
         [0f64; 3]
     }
-    fn likelihood(&self, obs: &RawMap) -> f64 {
+    fn likelihood(&self, obs: &Map) -> f64 {
         0f64
     }
 }
@@ -349,18 +342,33 @@ impl EM for UniformComp {
 pub struct Mixture {
     gaussians: Vec<GaussianComp>,
     noise: UniformComp,
-    obs: RawMap,
+    obs: Map,
     pub data: Map,
+    dt: DamageTracker,
 }
 
 impl Mixture {
     pub fn new(data: Map, obs: RawMap) -> Self {
         println!("Init mean: {}", obs.mean());
+        let mut ob = data.clone();
+        let size = data.size;
+
+        for i in 0..size[0] {
+            for j in 0..size[1] {
+                for k in 0..size[2] {
+                    let t = obs.get_density([i, j, k]).unwrap();
+                    if let Some(d) = ob.densities.get_mut([i, j, k]) {
+                        *d += t;
+                    }
+                }
+            }
+        }
         Self {
             gaussians: vec![],
             noise: UniformComp::new(obs.mean() * 1.0),
             data,
-            obs,
+            obs: ob,
+            dt: DamageTracker::new(16.0),
         }
     }
 
@@ -377,19 +385,40 @@ impl Mixture {
         }
     }
 
-    pub fn step(&mut self) {
-        self.expect();
+    pub fn step_internal(&mut self) -> usize {
+        let updates = self.expect();
         self.maximise();
+        updates
+    }
+
+    pub fn step(&mut self) {
+        self.data.zero();
+        self.noise.prev_mean = 0.0;
+        for g in &mut self.gaussians {
+            g.prev_sigma = 0.0;
+        }
+        for i in 0..10 {
+            if self.step_internal() == 0 {
+                return ();
+            }
+        }
     }
 
     /// Run an expectation cycle.  Sample from the distribution,
     /// adding to data.
-    fn expect(&mut self) {
-        self.data.zero();
+    fn expect(&mut self) -> usize {
+        let mut updates = 0;
+        self.dt.reset();
         for g in &self.gaussians {
+            if g.has_changed() || self.noise.has_changed() {
+                updates += 1;
+                self.dt.track(g.mean);
+            }
             g.sample(&mut self.data);
         }
+        println!("Updates: {} {}", updates, self.gaussians.len());
         self.noise.sample(&mut self.data);
+        updates
     }
 
     pub fn mean(&self, idx: usize) -> Point {
@@ -409,12 +438,15 @@ impl Mixture {
     }
 
     pub fn set_sigma(&mut self, idx: usize, sigma: f64) {
+        self.gaussians[idx].prev_sigma = self.gaussians[idx].sigma;
         self.gaussians[idx].sigma = sigma;
     }
 
     fn maximise(&mut self) {
         for g in &mut self.gaussians {
-            g.maximise(&self.data, &self.obs, self.noise.mean, self.noise.sigma);
+            if g.has_changed() || self.dt.check(g.mean) || self.noise.has_changed() {
+                g.maximise(&self.data, &self.obs, self.noise.mean, self.noise.sigma);
+            }
         }
         self.noise.maximise(&self.data, &self.obs, 0.0, 0.0);
     }

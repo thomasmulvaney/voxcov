@@ -56,6 +56,15 @@ impl<T> Grid<T> {
         idx += coord[2];
         Some(idx)
     }
+
+    pub fn row_coord(&self, i: usize, j: usize) -> Option<usize> {
+        if i >= self.size[0] || j >= self.size[1] {
+            return None;
+        }
+        let mut idx = self.size[1] * (self.size[2] * i);
+        idx += self.size[2] * j;
+        Some(idx)
+    }
 }
 
 pub trait GridLike<T> {
@@ -68,6 +77,10 @@ pub trait GridLike<T> {
 
     /// Get a mutable reference to the value at the coordinate.
     fn get_mut(&mut self, coord: Coord) -> Option<&mut T>
+    where
+        T: Default + Copy;
+
+    fn get_mut_row(&mut self, i: usize, j: usize, l: usize, u: usize) -> &mut [T]
     where
         T: Default + Copy;
 
@@ -119,6 +132,14 @@ where
         T: Default + Copy,
     {
         self.coord_to_idx(coord).map(|idx| &mut self.grid[idx])
+    }
+
+    fn get_mut_row(&mut self, i: usize, j: usize, l: usize, u: usize) -> &mut [T]
+    where
+        T: Default + Copy,
+    {
+        let row_coord = self.row_coord(i, j).unwrap();
+        &mut self.grid[row_coord + l..row_coord + u]
     }
 
     fn zero(&mut self)

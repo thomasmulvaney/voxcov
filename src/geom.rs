@@ -70,6 +70,9 @@ pub struct Transform {
 }
 
 impl Transform {
+    pub fn new(origin: Point, scale: Vector) -> Self {
+        Self { origin, scale }
+    }
     pub fn to_real(&self, coord: &Coord) -> Point {
         let x = (coord[0] as f64 * self.scale[0]) + self.origin[0];
         let y = (coord[1] as f64 * self.scale[1]) + self.origin[1];
@@ -104,7 +107,6 @@ pub struct BoundingCoord {
     pub lower: Coord,
     pub upper: Coord,
 }
-
 
 /// An axis aligned bounding box (AABB).
 #[derive(Debug)]

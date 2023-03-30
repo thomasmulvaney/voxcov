@@ -195,15 +195,13 @@ impl AddGaussianToMap for GaussianBlur {
         // every voxel in the box.
         dens.rec(bb.lower);
         dens.rec(bb.upper);
+
         for i in bb.lower[0]..=bb.upper[0] {
             for j in bb.lower[1]..=bb.upper[1] {
                 for k in bb.lower[2]..=bb.upper[2] {
                     let center = tf.to_real(&[i, j, k]);
                     if position.dist(&center) <= cutoff_dist {
                         let v = gaus.pdf(&center) * height;
-                        if v < 0.0 {
-                            println!("oop! {}", v);
-                        }
                         if let Some(d) = dens.get_mut([i, j, k]) {
                             *d += v;
                         }

@@ -322,7 +322,6 @@ impl EM for UniformComp {
                 var.add(resp);
             }
         }
-        println!("BG var: {}", var.val());
         self.sigma = var.val();
         let old_mean = self.mean;
         let new_mean = mean.val();
@@ -334,7 +333,6 @@ impl EM for UniformComp {
         } else {
             self.mean = new_mean;
         }
-        println!("Change in noise: {:.3e}", self.mean - old_mean);
         //self.mean = new_mean;
     }
 

@@ -159,7 +159,7 @@ impl MI {
 
 impl MOC {
     /// Create a new Manders Overlap Coefficient with sums set to zero.
-    fn new() -> Self {
+    pub fn new() -> Self {
         MOC {
             ss: 0f64,
             ee: 0f64,
@@ -168,26 +168,26 @@ impl MOC {
     }
 
     /// Add two pairs of values to the score
-    fn add_val(&mut self, s: f64, e: f64) {
+    pub fn add_val(&mut self, s: f64, e: f64) {
         self.ss += s * s;
         self.ee += e * e;
         self.se += s * e;
     }
 
     /// Remove two pairs of values to the score
-    fn del_val(&mut self, s: f64, e: f64) {
+    pub fn del_val(&mut self, s: f64, e: f64) {
         self.ss -= s * s;
         self.ee -= e * e;
         self.se -= s * e;
     }
 
     /// Get the current value of the score
-    fn get_val(&self) -> f64 {
+    pub fn get_val(&self) -> f64 {
         self.se / f64::sqrt(self.ss * self.ee)
     }
 
     // Reset the sums to zero
-    fn zero(&mut self) {
+    pub fn zero(&mut self) {
         self.ss = 0f64;
         self.se = 0f64;
         self.ee = 0f64;

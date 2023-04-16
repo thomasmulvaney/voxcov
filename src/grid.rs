@@ -146,18 +146,26 @@ where
     where
         T: Default + Copy,
     {
-        for v in &mut self.grid {
-            *v = T::default();
-        }
-        return ();
+        //for v in &mut self.grid {
+        //    *v = T::default();
+        //}
+        //return ();
         // iterate over any region which has been touched.
+let mut q: usize = 0;
         if let Some(low) = self.low {
             if let Some(high) = self.high {
                 for i in low[0]..=high[0] {
                     for j in low[1]..=high[1] {
-                        for k in low[2]..=high[2] {
-                            self.set([i, j, k], T::default());
-                        }
+                        let mut row = self.get_mut_row(i,j, low[2], high[2]);
+                        for c in row.iter_mut() {
+                             for x in 0..3000 {
+                              *c = T::default(); 
+q += x;
+} 
+}
+                        //for k in low[2]..=high[2] {
+                        //    self.set([i, j, k], T::default());
+                        //}
                     }
                 }
             }

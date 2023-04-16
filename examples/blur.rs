@@ -1,5 +1,5 @@
 use std::time::Instant;
-use voxcov::blur::{AddGaussianToMap, GaussianBlur, Map};
+use voxcov::blur::{AddGaussianToMap, GaussianBlur, Map, MultiGaussianBlur};
 
 /// Stolen from https://github.com/ybyygu/rust-octree/blob/master/examples/demo.rs
 fn read_points_xyz(txt: &str) -> Vec<[f64; 3]> {
@@ -24,14 +24,24 @@ fn main() {
     let blurrer = GaussianBlur::new(4.0);
     let now = Instant::now();
     for p in &points {
-        blurrer.add_gaussian(&mut map, p, 1.0, 4.0 * 0.187);
+        blurrer.add_gaussian(&mut map, p, 1.0, 9.0 * 0.187);
     }
     println!("End blur {:?}", now.elapsed());
 
     let now = Instant::now();
     for p in &points {
-        blurrer.add_gaussian(&mut map, p, -1.0, 4.0 * 0.187);
-        blurrer.add_gaussian(&mut map, p, 1.0, 4.0 * 0.187);
+        blurrer.add_gaussian(&mut map, p, -1.0, 9.0 * 0.187);
+        blurrer.add_gaussian(&mut map, p, 1.0, 9.0 * 0.187);
     }
     println!("End blur {:?}", now.elapsed());
+    let now = Instant::now();
+    map.zero();
+    println!("End zero {:?}", now.elapsed());
+    let now = Instant::now();
+    let mut mgb = MultiGaussianBlur::new(9.0);
+    for p in &points {
+       mgb.track(*p);
+    }
+    mgb.apply(&mut map);
+    println!("End zero {:?}", now.elapsed());
 }

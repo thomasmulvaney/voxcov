@@ -17,6 +17,7 @@
 
 use crate::geom::{BoundingCoord, Coord, Distance, Point, Transform, Vector};
 use crate::grid::{Grid, GridLike};
+use std::collections::hash_map::HashMap;
 
 /// A 3D gaussian like function with a width of sigma.
 pub struct Gaussian1D {
@@ -198,19 +199,97 @@ impl AddGaussianToMap for GaussianBlur {
 
         for i in bb.lower[0]..=bb.upper[0] {
             for j in bb.lower[1]..=bb.upper[1] {
-                for k in bb.lower[2]..=bb.upper[2] {
-                    let center = tf.to_real(&[i, j, k]);
+                let mut row = dens.get_mut_row(i,j,bb.lower[2], bb.upper[2]);
+                for (c, k) in row.iter_mut().zip(bb.lower[2]..=bb.upper[2]) {
+let center = tf.to_real(&[i, j, k]);
                     if position.dist(&center) <= cutoff_dist {
                         let v = gaus.pdf(&center) * height;
-                        if let Some(d) = dens.get_mut([i, j, k]) {
-                            *d += v;
-                        }
+			*c += v;
                     }
-                }
+		}
             }
         }
     }
 }
+
+pub struct MultiGaussianBlur {
+  cells: HashMap<Coord, Vec<Point>>,
+  transform: Transform,
+}
+
+impl MultiGaussianBlur {
+    pub fn new(cell_size: f64) -> Self {
+	Self { cells: HashMap::new(), 
+	       transform: Transform::new([0f64; 3], [cell_size; 3]),
+	}
+    } 
+    pub fn track(&mut self, point: Point) {
+	let coord = self.transform.to_voxel(&point);
+	self.cells.entry(coord).and_modify(|x| x.push(point)).or_insert(vec![]);
+    }
+
+    pub fn apply(&self, map: &mut Map) {
+	let mut cnt = 0;
+	let dens = &mut map.densities;
+	/*
+	for (cell, points) in self.cells.iter() {
+	    let p = self.transform.to_real(cell);
+	    let v = map.transform.to_voxel(&p);
+	    for i in v[0]-7..(v[0]+7) {
+		for j in v[1]-7..(v[1]+7) {
+		    let mut row = dens.get_mut_row(i,j,v[2]-7, v[2] + 7);
+		    for (c, k) in row.iter_mut().zip(v[2]-7..(v[2]+7)) {
+			let center = map.transform.to_real(&[i,j,k]);
+			for point in points.into_iter() {
+			    *c += Gaussian::new(*point, 5.0*0.187).pdf(&center);
+			}
+		    }
+		}
+	    }
+    }*/
+	let mut min_i = map.size[0];
+	let mut min_j = map.size[1];
+	let mut min_k = map.size[2];
+	let mut max_i = 0;
+	let mut max_j = 0;
+	let mut max_k = 0;
+	for v in self.cells.values() {
+	    for p in v {
+		let k = map.transform.to_voxel(p);
+	    min_i = min_i.min(k[0]);
+	    min_j = min_i.min(k[1]);
+	    min_k = min_i.min(k[2]);
+
+	    max_i = max_i.max(k[0]);
+	    max_j = max_i.max(k[1]);
+	    max_k = max_i.max(k[2]);
+	    }
+	}
+	println!("{} {}, {} {}, {} {}", min_i, max_i, min_j, max_j, min_k, max_k);
+	    
+	for i in min_i..max_i {
+	    for j in min_j..max_j {
+		let mut row = dens.get_mut_row(i, j, min_k, max_k);
+		for (c, k) in row.iter_mut().zip(min_k..max_k) {
+		    let center = map.transform.to_real(&[i,j,k]);
+		    for a in 0..2 {
+		    for b in 0..2 {
+		    for q in 0..2 {
+		    if let Some(points) = self.cells.get(&[i + a - 1, j + b - 1, k + q - 1]) {
+		    for point in  points {
+			    *c += Gaussian::new(*point, 5.0*0.187).pdf(&center);
+		    }
+		    }
+		    }
+		    }
+		    }
+		}
+	    }
+    }
+    }
+}
+
+
 
 #[derive(Clone)]
 pub struct Map {

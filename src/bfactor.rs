@@ -350,6 +350,7 @@ pub struct Mixture {
 }
 
 impl Mixture {
+    pub fn moc(&self) -> f64 {0 }
     pub fn new(data: Map, obs: RawMap) -> Self {
         println!("Init mean: {}", obs.mean());
         let mut ob = data.clone();

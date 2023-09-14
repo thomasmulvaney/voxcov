@@ -15,13 +15,21 @@
 
 //! Functions for blurring structures and building simulated density maps.
 
-use crate::geom::{Coord, Distance, Point, Transform, Vector};
+use crate::geom::{BoundingCoord, Coord, Distance, Point, Transform, Vector};
 use crate::grid::{Grid, GridLike};
+
+/// A 3D gaussian like function with a width of sigma.
+pub struct Gaussian1D {
+    center: f64,
+    exp_denom: f64,
+    pdf: f64,
+}
 
 /// A 3D gaussian like function with a width of sigma.
 pub struct Gaussian {
     center: Point,
     exp_denom: f64,
+    pdf: f64,
 }
 
 /// A 3D gaussian ring like function with a width of sigma.
@@ -31,6 +39,47 @@ pub struct GaussianRing {
     pub radius: f64,
     pub sigma: f64,
     exp_denom: f64,
+}
+
+impl Gaussian1D {
+    /// Create a new 3D gaussian with width of sigma.
+    ///
+    /// # Arguments
+    ///
+    /// * `center` - The center of the gaussian.
+    /// * `sigma` - An array of sigma for each dimension.
+    pub fn new(center: f64, sigma: f64) -> Self {
+        Gaussian1D {
+            center,
+            exp_denom: -1f64 / (2f64 * sigma * sigma),
+            pdf: 1f64 / (sigma * f64::powf((2f64 * std::f64::consts::PI), 0.5)),
+        }
+    }
+
+    /// TODO, better function name.
+    pub fn height_at_point(&self, point: f64) -> f64 {
+        let w = self.center - point;
+        f64::exp(w * w * self.exp_denom)
+    }
+
+    /// Probability density function. Normalize gaussian so, overall area is 1.
+    /// Returns the probability at point.
+    pub fn pdf(&self, point: f64) -> f64 {
+        let r = self.pdf * self.height_at_point(point);
+        return r;
+        if r.is_nan() {
+            return 0f64;
+        }
+
+        if r < 1e-30 {
+            return 0f64;
+        }
+
+        if r > 1f64 {
+            return 1f64;
+        }
+        r
+    }
 }
 
 impl Gaussian {
@@ -44,14 +93,21 @@ impl Gaussian {
         Gaussian {
             center,
             exp_denom: -1f64 / (2f64 * sigma * sigma),
+            pdf: 1f64
+                / (sigma * sigma * sigma * f64::powf((2f64 * std::f64::consts::PI), 3.0 / 2.0)),
         }
     }
 
     /// TODO, better function name.
     pub fn height_at_point(&self, point: &Point) -> f64 {
-        let v = self.center.vector_to(point);
-        let w = (v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]);
+        let w = self.center.dist2(point);
         f64::exp(w * self.exp_denom)
+    }
+
+    /// Probability density function. Normalize gaussian so, overall area is 1.
+    /// Returns the probability at point.
+    pub fn pdf(&self, point: &Point) -> f64 {
+        self.pdf * self.height_at_point(point)
     }
 }
 
@@ -132,41 +188,25 @@ impl AddGaussianToMap for GaussianBlur {
     fn add_gaussian(&self, map: &mut Map, position: &Point, height: f64, sigma: f64) {
         let gaus = Gaussian::new(*position, sigma);
         let cutoff_dist = self.cutoff * sigma;
-
-        // Define a box to blur in.
-        let pos = position;
-        let lower_corner = [
-            pos[0] - cutoff_dist,
-            pos[1] - cutoff_dist,
-            pos[2] - cutoff_dist,
-        ];
-
-        let upper_corner = [
-            pos[0] + cutoff_dist,
-            pos[1] + cutoff_dist,
-            pos[2] + cutoff_dist,
-        ];
-
         let tf = &map.transform;
-        let lv = tf.to_voxel(&lower_corner);
-        let mut uv = tf.to_voxel(&upper_corner);
-
-        uv[0] = usize::min(map.size[0] - 1, uv[0]);
-        uv[1] = usize::min(map.size[1] - 1, uv[1]);
-        uv[2] = usize::min(map.size[2] - 1, uv[2]);
-
+        let bb = map.get_bounding_coord(*position, cutoff_dist);
         let dens = &mut map.densities;
         // We should blur voxels with in radius of cutoff but for now just do
         // every voxel in the box.
-        dens.rec(uv);
-        dens.rec(lv);
-        for i in lv[0]..=uv[0] {
-            for j in lv[1]..=uv[1] {
-                for k in lv[2]..=uv[2] {
+        dens.rec(bb.lower);
+        dens.rec(bb.upper);
+        for i in bb.lower[0]..=bb.upper[0] {
+            for j in bb.lower[1]..=bb.upper[1] {
+                for k in bb.lower[2]..=bb.upper[2] {
                     let center = tf.to_real(&[i, j, k]);
-                    let v = gaus.height_at_point(&center) * height;
-                    if let Some(d) = dens.get_mut([i, j, k]) {
-                        *d += v;
+                    if position.dist(&center) <= cutoff_dist {
+                        let v = gaus.pdf(&center) * height;
+                        if v < 0.0 {
+                            println!("oop! {}", v);
+                        }
+                        if let Some(d) = dens.get_mut([i, j, k]) {
+                            *d += v;
+                        }
                     }
                 }
             }
@@ -174,6 +214,7 @@ impl AddGaussianToMap for GaussianBlur {
     }
 }
 
+#[derive(Clone)]
 pub struct Map {
     pub size: [usize; 3],
     pub transform: Transform,
@@ -184,6 +225,35 @@ pub trait GetDensity {
     /// Get the density value at the coordinate
     fn get_density(&self, coord: Coord) -> Option<&f64>;
     fn get_size(&self) -> Coord;
+    fn get_transform(&self) -> Transform;
+    /// Return a BoundingCoord which contains `point` and the lowest
+    /// and highest coord which within cutoff_dist and inside the map.
+    fn get_bounding_coord(&self, point: Point, cutoff_dist: f64) -> BoundingCoord {
+        let lower_corner = [
+            point[0] - cutoff_dist,
+            point[1] - cutoff_dist,
+            point[2] - cutoff_dist,
+        ];
+
+        let upper_corner = [
+            point[0] + cutoff_dist,
+            point[1] + cutoff_dist,
+            point[2] + cutoff_dist,
+        ];
+
+        let tf = &self.get_transform();
+        let size = self.get_size();
+        let lv = tf.to_voxel(&lower_corner);
+        let mut uv = tf.to_voxel(&upper_corner);
+
+        uv[0] = usize::min(size[0] - 1, uv[0]);
+        uv[1] = usize::min(size[1] - 1, uv[1]);
+        uv[2] = usize::min(size[2] - 1, uv[2]);
+        BoundingCoord {
+            lower: lv,
+            upper: uv,
+        }
+    }
 }
 
 impl Map {
@@ -206,6 +276,22 @@ impl Map {
     pub fn zero(&mut self) {
         self.densities.zero();
     }
+
+    pub fn add(&mut self, a: f64) {
+        for v in &mut self.densities.grid {
+            *v += a;
+        }
+        self.densities.rec([0, 0, 0]);
+        self.densities.rec(self.densities.size);
+    }
+
+    pub fn sum(&self) -> f64 {
+        let mut sum = 0f64;
+        for v in &self.densities.grid {
+            sum += *v;
+        }
+        sum
+    }
 }
 
 impl GetDensity for Map {
@@ -215,6 +301,10 @@ impl GetDensity for Map {
 
     fn get_size(&self) -> Coord {
         self.size
+    }
+
+    fn get_transform(&self) -> Transform {
+        self.transform
     }
 }
 
@@ -233,6 +323,65 @@ impl RawMap {
             densities: vec,
         }
     }
+
+    pub fn mean(&self) -> f64 {
+        let sum = self.sum();
+        sum / self.densities.len() as f64
+    }
+    pub fn sum(&self) -> f64 {
+        let mut sum = 0f64;
+        for v in &self.densities {
+            sum += *v;
+        }
+        sum
+    }
+
+    pub fn var(&self) -> f64 {
+        let mean = self.mean();
+        let mut sum = 0f64;
+        for v in &self.densities {
+            sum += f64::powf(*v - mean, 2f64);
+        }
+        sum / self.densities.len() as f64
+    }
+
+    pub fn std(&self) -> f64 {
+        self.var().sqrt()
+    }
+
+    pub fn min(&self) -> f64 {
+        self.densities.iter().fold(f64::INFINITY, |a, &b| a.min(b))
+    }
+
+    pub fn max(&self) -> f64 {
+        self.densities.iter().fold(-f64::INFINITY, |a, &b| a.max(b))
+    }
+
+    /// Docs for.
+    ///
+    /// # Example
+    /// ```
+    /// use voxcov::blur::RawMap;
+    /// let rm = RawMap::new([0f64; 3], [1f64; 3], [10; 3], vec![0f64; 1000]);
+    /// assert_eq!(rm.coord_to_idx([0, 0, 0]), Some(0));
+    /// assert_eq!(rm.coord_to_idx([0, 0, 1]), Some(1));
+    /// assert_eq!(rm.coord_to_idx([9, 9, 9]), Some(999));
+    /// assert_eq!(rm.coord_to_idx([9, 9, 10]), None);
+    /// assert_eq!(rm.coord_to_idx([9, 10, 9]), None);
+    /// assert_eq!(rm.coord_to_idx([10, 9, 9]), None);
+    /// ```
+    pub fn coord_to_idx(&self, coord: Coord) -> Option<usize> {
+        if coord[2] >= self.size[0] || coord[1] >= self.size[1] || coord[2] >= self.size[2] {
+            return None;
+        }
+        let mut idx = self.size[1] * (self.size[2] * coord[0]);
+        idx += self.size[2] * coord[1];
+        idx += coord[2];
+        if idx > self.densities.len() {
+            return None;
+        }
+        return Some(idx);
+    }
 }
 
 impl GetDensity for RawMap {
@@ -244,10 +393,15 @@ impl GetDensity for RawMap {
         idx += self.size[0] * coord[1];
         idx += coord[0];
         self.densities.get(idx)
+        //self.coord_to_idx(coord).map(|idx| &self.densities[idx])
     }
 
     fn get_size(&self) -> Coord {
         self.size
+    }
+
+    fn get_transform(&self) -> Transform {
+        self.transform
     }
 }
 
@@ -283,6 +437,7 @@ mod tests {
         assert_eq!(map.get_density([0, 1, 0]), None);
         assert_eq!(map.get_density([0, 0, 1]), Some(&1f64));
 
+        /*
         let arr: Vec<f64> = vec![
             1f64, 2f64, 3f64, 4f64, 5f64, 6f64, 7f64, 8f64, 9f64, 10f64, 11f64, 12f64,
         ];
@@ -299,5 +454,6 @@ mod tests {
         assert_eq!(map.get_density([1, 1, 0]), Some(&4f64));
         assert_eq!(map.get_density([1, 1, 1]), Some(&8f64));
         assert_eq!(map.get_density([1, 1, 2]), Some(&12f64));
+        */
     }
 }

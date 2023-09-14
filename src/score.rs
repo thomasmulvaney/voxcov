@@ -40,15 +40,15 @@ pub struct MI {
 }
 
 /// Discretize a given range of values linearly.
-struct LinearBin {
-    low: f64,
-    high: f64,
-    step: f64,
+pub struct LinearBin {
+    pub low: f64,
+    pub high: f64,
+    pub step: f64,
     bins: usize,
 }
 
 impl LinearBin {
-    fn new(low: f64, high: f64, bins: usize) -> Self {
+    pub fn new(low: f64, high: f64, bins: usize) -> Self {
         Self {
             low,
             high,
@@ -62,7 +62,7 @@ impl LinearBin {
     }
 
     /// Returns the bin associated with value
-    fn bin(&self, val: f64) -> Option<usize> {
+    pub fn bin(&self, val: f64) -> Option<usize> {
         if val > self.high || val < self.low {
             None
         } else {
@@ -87,13 +87,13 @@ impl MI {
     fn add_val(&mut self, s: f64, e: f64) {
         let sb = self.x_binner.bin(s).unwrap_or_else(|| {
             panic!(
-                "Value ({}) outside bin range: {}-{}",
+                "Value ({:?}) outside bin range: {:?}-{:?}",
                 s, self.x_binner.low, self.x_binner.high
             )
         });
         let eb = self.y_binner.bin(e).unwrap_or_else(|| {
             panic!(
-                "Value ({}) outside bin range: {}-{}",
+                "Value ({:?}) outside bin range: {:?}-{:?}",
                 e, self.y_binner.low, self.y_binner.high
             )
         });
@@ -159,7 +159,7 @@ impl MI {
 
 impl MOC {
     /// Create a new Manders Overlap Coefficient with sums set to zero.
-    fn new() -> Self {
+    pub fn new() -> Self {
         MOC {
             ss: 0f64,
             ee: 0f64,
@@ -168,26 +168,26 @@ impl MOC {
     }
 
     /// Add two pairs of values to the score
-    fn add_val(&mut self, s: f64, e: f64) {
+    pub fn add_val(&mut self, s: f64, e: f64) {
         self.ss += s * s;
         self.ee += e * e;
         self.se += s * e;
     }
 
     /// Remove two pairs of values to the score
-    fn del_val(&mut self, s: f64, e: f64) {
+    pub fn del_val(&mut self, s: f64, e: f64) {
         self.ss -= s * s;
         self.ee -= e * e;
         self.se -= s * e;
     }
 
     /// Get the current value of the score
-    fn get_val(&self) -> f64 {
+    pub fn get_val(&self) -> f64 {
         self.se / f64::sqrt(self.ss * self.ee)
     }
 
     // Reset the sums to zero
-    fn zero(&mut self) {
+    pub fn zero(&mut self) {
         self.ss = 0f64;
         self.se = 0f64;
         self.ee = 0f64;

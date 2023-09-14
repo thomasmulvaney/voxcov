@@ -3,8 +3,8 @@ use crate::geom::Coord;
 pub struct Grid<T> {
     pub grid: Vec<T>,
     pub size: Coord,
-    low: Option<Coord>,
-    high: Option<Coord>,
+    pub low: Option<Coord>,
+    pub high: Option<Coord>,
 }
 
 impl<T> Grid<T> {
@@ -21,6 +21,30 @@ impl<T> Grid<T> {
     }
     pub fn len(&self) -> usize {
         self.grid.len()
+    }
+
+    pub fn normalize(&mut self)
+    where
+        T: Default + Copy + std::ops::AddAssign + std::ops::DivAssign,
+    {
+        let mut tot = T::default();
+        for v in &self.grid {
+            tot += *v;
+        }
+        for v in &mut self.grid {
+            *v /= tot;
+        }
+    }
+
+    pub fn mean(&self) -> f64
+    where
+        T: Default + Copy + std::ops::AddAssign + std::ops::DivAssign + std::convert::Into<f64>,
+    {
+        let mut tot = T::default();
+        for v in &self.grid {
+            tot += *v;
+        }
+        tot.into() / self.grid.len() as f64
     }
 
     pub fn coord_to_idx(&self, coord: Coord) -> Option<usize> {
@@ -101,12 +125,16 @@ where
     where
         T: Default + Copy,
     {
+        for v in &mut self.grid {
+            *v = T::default();
+        }
+        return ();
         // iterate over any region which has been touched.
         if let Some(low) = self.low {
             if let Some(high) = self.high {
-                for i in low[0]..high[0] {
-                    for j in low[1]..high[1] {
-                        for k in low[2]..high[2] {
+                for i in low[0]..=high[0] {
+                    for j in low[1]..=high[1] {
+                        for k in low[2]..=high[2] {
                             self.set([i, j, k], T::default());
                         }
                     }

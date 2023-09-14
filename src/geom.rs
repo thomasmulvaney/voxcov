@@ -105,7 +105,6 @@ pub struct BoundingCoord {
     pub upper: Coord,
 }
 
-
 /// An axis aligned bounding box (AABB).
 #[derive(Debug)]
 pub struct BoundingBox {

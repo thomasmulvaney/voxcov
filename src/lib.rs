@@ -14,10 +14,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! TODO: Describe what the library is for
+pub mod bfactor;
 pub mod blur;
 pub mod coverage;
 pub mod geom;
 pub mod grid;
 pub mod node;
 pub mod score;
-pub mod bfactor;
